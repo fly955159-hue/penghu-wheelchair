@@ -357,10 +357,12 @@
 
   <!-- 規則說明 -->
   <div class="rule-note">
-    <strong>📋 管理規範重點：</strong>每航次輪椅類行動輔具總量上限 <strong>14 台</strong>。
-    同航次身障輪椅旅客 <strong>≤ 8 人</strong>時，船上人員可協助緊急撤離，無須陪伴者；
-    <strong>超過 8 人</strong>時，超出部分須有陪伴者隨行搭船。
+    <strong>📋 管理規範重點（115.6.16版）：</strong>每航次行動輔具總量上限 <strong>10 台</strong>，分兩類管控：<br>
+    　①　<strong>自主登輪</strong>（輔具隨乘客進入客艙）：每航次上限 <strong>6 台</strong><br>
+    　②　<strong>人車分離</strong>（輔具另行放置於甲板）：每航次上限 <strong>4 台</strong><br>
+    自主登輪額滿後，採人車分離且<strong>無法自行緊急撤離</strong>者，<strong>強制須有陪伴者隨行</strong>。<br>
     電動代步車尺寸限制：長 ≤130 cm、寬 ≤70 cm、高 ≤145 cm。
+    請於開航前 <strong>3天</strong>（不含例假日）來電登記，並於開航前 <strong>60分鐘</strong>抵達。
   </div>
 
   <!-- 日期選擇 -->
@@ -400,6 +402,13 @@
       <select id="regOffice">
         <option value="ksn">高雄售票處</option>
         <option value="pkh">馬公售票處</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>登記類型</label>
+      <select id="regBoardingType" onchange="updateRemainHint()">
+        <option value="自主登輪">自主登輪（輔具隨乘客進入客艙）</option>
+        <option value="人車分離">人車分離（輔具另行放置於甲板）</option>
       </select>
     </div>
     <div class="form-group">
@@ -642,6 +651,10 @@ async function deleteRegRemote(regId) {
   }
 }
 
+const MAX_TOTAL    = 10; // 每航次總上限
+const MAX_SELF     = 6;  // 自主登輪上限
+const MAX_SEPARATE = 4;  // 人車分離上限
+
 function getVoyageRegs(voyageId) {
   return registrations.filter(r => r.voyageId === voyageId);
 }
@@ -650,17 +663,31 @@ function getVoyageCount(voyageId) {
   return getVoyageRegs(voyageId).reduce((s, r) => s + Number(r.count), 0);
 }
 
-function getStatus(count) {
-  if (count >= 14) return 'full';
-  if (count >= 9)  return 'warn';
+function getVoyageSelfCount(voyageId) {
+  return getVoyageRegs(voyageId)
+    .filter(r => r.boardingType !== '人車分離')
+    .reduce((s, r) => s + Number(r.count), 0);
+}
+
+function getVoyageSeparateCount(voyageId) {
+  return getVoyageRegs(voyageId)
+    .filter(r => r.boardingType === '人車分離')
+    .reduce((s, r) => s + Number(r.count), 0);
+}
+
+function getStatus(total) {
+  if (total >= MAX_TOTAL) return 'full';
+  if (total >= 8) return 'warn';
   return 'ok';
 }
 
-function statusText(count) {
-  const rem = 14 - count;
-  if (count >= 14) return '已達上限 (14/14)';
-  if (count >= 9)  return `接近上限，尚可登記 ${rem} 台`;
-  return `尚可登記 ${rem} 台`;
+function statusText(selfCount, separateCount) {
+  const total = selfCount + separateCount;
+  const remSelf = Math.max(0, MAX_SELF - selfCount);
+  const remSep  = Math.max(0, MAX_SEPARATE - separateCount);
+  if (total >= MAX_TOTAL) return `已達上限 (${total}/${MAX_TOTAL})`;
+  if (total >= 8) return `接近上限，自主登輪剩 ${remSelf} 台 / 人車分離剩 ${remSep} 台`;
+  return `自主登輪剩 ${remSelf} 台 ／ 人車分離剩 ${remSep} 台`;
 }
 
 // ────────────────────────────────────────────────
@@ -693,20 +720,23 @@ function renderVoyages() {
 }
 
 function buildCard(v) {
-  const count = getVoyageCount(v.id);
-  const status = getStatus(count);
-  const regs = getVoyageRegs(v.id);
-  const pct = Math.min(100, Math.round(count/14*100));
-  const isFull = count >= 14;
+  const selfCount     = getVoyageSelfCount(v.id);
+  const separateCount = getVoyageSeparateCount(v.id);
+  const total         = selfCount + separateCount;
+  const status        = getStatus(total);
+  const regs          = getVoyageRegs(v.id);
+  const selfPct       = Math.min(100, Math.round(selfCount / MAX_SELF * 100));
+  const sepPct        = Math.min(100, Math.round(separateCount / MAX_SEPARATE * 100));
+  const isFull        = total >= MAX_TOTAL;
 
   const card = document.createElement('div');
   card.className = `voyage-card status-${status}`;
 
   // companion warning
-  const needCompanion = count > 8;
-  const companionHTML = needCompanion
-    ? `<div class="companion-notice warn">⚠️ 已超過 8 人，超出部分旅客<strong>須有陪伴者隨行</strong></div>`
-    : `<div class="companion-notice ok">✅ ≤ 8 人，船上人員可協助撤離</div>`;
+  const selfFull = selfCount >= MAX_SELF;
+  const companionHTML = selfFull
+    ? `<div class="companion-notice warn">⚠️ 自主登輪已滿額，人車分離且<strong>無法自行撤離者須有陪伴者隨行</strong></div>`
+    : `<div class="companion-notice ok">✅ 自主登輪尚有名額（${selfCount}/${MAX_SELF} 台）</div>`;
 
   const regItems = regs.length === 0
     ? `<div class="reg-empty">尚無登記紀錄</div>`
@@ -716,7 +746,7 @@ function buildCard(v) {
         <span class="reg-main">
           <strong>${r.name || '（未填姓名）'}</strong>
           <span style="color:var(--text-muted); font-size:12px;">
-            ${r.type} × ${r.count} 台　陪伴:${r.companion}
+            ${r.boardingType || '自主登輪'}　${r.type} × ${r.count} 台　陪伴:${r.companion}
             ${r.note ? '　' + r.note : ''}
           </span>
         </span>
@@ -732,19 +762,36 @@ function buildCard(v) {
         <div class="voyage-time">航班編號：${v.id}${v.note ? '　' + v.note : ''}</div>
       </div>
       <div class="count-badge">
-        <div class="count-num status-${status}">${count}</div>
-        <div class="count-label">/ 14 台</div>
+        <div class="count-num status-${status}">${total}</div>
+        <div class="count-label">/ ${MAX_TOTAL} 台</div>
       </div>
     </div>
-    <div class="progress-bar">
-      <div class="progress-fill status-${status}" style="width:${pct}%"></div>
+    <div style="padding: 8px 18px 4px; display:flex; gap:12px; font-size:12px;">
+      <div style="flex:1">
+        <div style="display:flex;justify-content:space-between;margin-bottom:3px;">
+          <span style="color:var(--text-muted)">自主登輪</span>
+          <span style="font-weight:700;color:${selfCount>=MAX_SELF?'var(--red)':'var(--primary)'}">${selfCount}/${MAX_SELF}</span>
+        </div>
+        <div class="progress-bar" style="margin:0">
+          <div class="progress-fill ${selfCount>=MAX_SELF?'status-full':selfCount>=5?'status-warn':'status-ok'}" style="width:${selfPct}%"></div>
+        </div>
+      </div>
+      <div style="flex:1">
+        <div style="display:flex;justify-content:space-between;margin-bottom:3px;">
+          <span style="color:var(--text-muted)">人車分離</span>
+          <span style="font-weight:700;color:${separateCount>=MAX_SEPARATE?'var(--red)':'var(--primary)'}">${separateCount}/${MAX_SEPARATE}</span>
+        </div>
+        <div class="progress-bar" style="margin:0">
+          <div class="progress-fill ${separateCount>=MAX_SEPARATE?'status-full':separateCount>=3?'status-warn':'status-ok'}" style="width:${sepPct}%"></div>
+        </div>
+      </div>
     </div>
-    <div class="status-text status-${status}">${statusText(count)}</div>
+    <div class="status-text status-${status}" style="padding-top:10px">${statusText(selfCount, separateCount)}</div>
     ${companionHTML}
     <div class="reg-list">${regItems}</div>
     <div class="btn-add-wrap">
       <button class="btn-add" ${isFull ? 'disabled' : ''} onclick="openModal('${v.id}')">
-        ${isFull ? '此航次已達14台上限' : '＋ 登記輪椅旅客'}
+        ${isFull ? `此航次已達 ${MAX_TOTAL} 台上限` : '＋ 登記輪椅旅客'}
       </button>
     </div>
   `;
@@ -758,8 +805,8 @@ function updateStats(filtered) {
   const monthVoyages = SCHEDULE.filter(v => v.date.slice(0,7) === yearMonth);
   const counts = monthVoyages.map(v => getVoyageCount(v.id));
   const total = counts.reduce((s,c) => s + c, 0);
-  const full  = counts.filter(c => c >= 14).length;
-  const warn  = counts.filter(c => c >= 9 && c < 14).length;
+  const full  = counts.filter(c => c >= MAX_TOTAL).length;
+  const warn  = counts.filter(c => c >= 8 && c < MAX_TOTAL).length;
   const withRegs = counts.filter(c => c > 0).length;
   const monthLabel = yearMonth.replace('-','年') + '月';
   document.getElementById('statsMonthLabel').textContent = monthLabel + '統計';
@@ -774,20 +821,47 @@ function updateStats(filtered) {
 // ────────────────────────────────────────────────
 let currentVoyageId = null;
 
+function updateRemainHint() {
+  if (!currentVoyageId) return;
+  const boardingType = document.getElementById('regBoardingType').value;
+  const selfCount     = getVoyageSelfCount(currentVoyageId);
+  const separateCount = getVoyageSeparateCount(currentVoyageId);
+  let remain;
+  if (boardingType === '人車分離') {
+    remain = Math.max(0, MAX_SEPARATE - separateCount);
+  } else {
+    remain = Math.max(0, MAX_SELF - selfCount);
+  }
+  document.getElementById('remainHint').textContent =
+    `${boardingType} 尚可登記 ${remain} 台（自主登輪 ${selfCount}/${MAX_SELF}、人車分離 ${separateCount}/${MAX_SEPARATE}）`;
+  document.getElementById('regCount').max = remain;
+  if (parseInt(document.getElementById('regCount').value) > remain) {
+    document.getElementById('regCount').value = Math.max(1, remain);
+  }
+}
+
 function openModal(voyageId) {
   currentVoyageId = voyageId;
   const v = SCHEDULE.find(x => x.id === voyageId);
-  const count = getVoyageCount(voyageId);
-  const remain = 14 - count;
+  const selfCount     = getVoyageSelfCount(voyageId);
+  const separateCount = getVoyageSeparateCount(voyageId);
+  const total         = selfCount + separateCount;
 
   document.getElementById('modalVoyageInfo').textContent =
-    `${v.date} ${v.departTime}　${routeLabel(v.route)}　（目前已登記 ${count} 台，尚可 ${remain} 台）`;
-  document.getElementById('remainHint').textContent = `此航次尚可登記最多 ${remain} 台`;
+    `${v.date} ${v.departTime}　${routeLabel(v.route)}　合計 ${total}/${MAX_TOTAL} 台（自主 ${selfCount}/${MAX_SELF}、人車分離 ${separateCount}/${MAX_SEPARATE}）`;
+
+  // 如果自主登輪已滿，預設選人車分離
+  if (selfCount >= MAX_SELF) {
+    document.getElementById('regBoardingType').value = '人車分離';
+  } else {
+    document.getElementById('regBoardingType').value = '自主登輪';
+  }
+
   document.getElementById('regCount').value = 1;
-  document.getElementById('regCount').max = remain;
   document.getElementById('regName').value = '';
   document.getElementById('regNote').value = '';
   document.getElementById('regCompanion').value = '否';
+  updateRemainHint();
   document.getElementById('modalOverlay').classList.add('open');
 }
 
@@ -804,18 +878,28 @@ function adjustCount(delta) {
 
 async function submitReg() {
   if (!currentVoyageId) return;
-  const count = parseInt(document.getElementById('regCount').value) || 0;
+  const count       = parseInt(document.getElementById('regCount').value) || 0;
+  const boardingType = document.getElementById('regBoardingType').value;
   if (count < 1) { alert('請輸入至少 1 台'); return; }
 
-  const remain = 14 - getVoyageCount(currentVoyageId);
+  // 檢查各類型剩餘數量
+  const selfCount     = getVoyageSelfCount(currentVoyageId);
+  const separateCount = getVoyageSeparateCount(currentVoyageId);
+  let remain;
+  if (boardingType === '人車分離') {
+    remain = Math.max(0, MAX_SEPARATE - separateCount);
+  } else {
+    remain = Math.max(0, MAX_SELF - selfCount);
+  }
   if (count > remain) {
-    alert(`此航次最多還可登記 ${remain} 台，請調整台數。`);
+    alert(`${boardingType} 最多還可登記 ${remain} 台，請調整台數或更換登記類型。`);
     return;
   }
 
   const reg = {
     id: Date.now().toString(36) + Math.random().toString(36).slice(2,6),
     voyageId: currentVoyageId,
+    boardingType,
     office: document.getElementById('regOffice').value,
     type: document.getElementById('regType').value,
     count,
@@ -884,7 +968,7 @@ function exportMonthReport() {
     ['台灣航業股份有限公司　澎湖輪'],
     [`${monthLabel}無障礙輪椅搭乘登記彙總表`],
     [''],
-    ['航班日期', '開航時間', '航線', '高雄登記(台)', '馬公登記(台)', '合計(台)', '手動輪椅', '電動輪椅', '電動代步車', '其他', '狀態'],
+    ['航班日期', '開航時間', '航線', '高雄登記(台)', '馬公登記(台)', '自主登輪(台)', '人車分離(台)', '合計(台)', '手動輪椅', '電動輪椅', '電動代步車', '其他', '狀態'],
   ];
 
   let totalAll = 0, totalKsn = 0, totalPkh = 0;
@@ -892,28 +976,30 @@ function exportMonthReport() {
 
   monthVoyages.forEach(v => {
     const regs = getVoyageRegs(v.id);
-    const total = regs.reduce((s,r) => s + Number(r.count), 0);
-    const ksn   = regs.filter(r=>r.office==='ksn').reduce((s,r)=>s+Number(r.count),0);
-    const pkh   = regs.filter(r=>r.office==='pkh').reduce((s,r)=>s+Number(r.count),0);
-    const manual  = regs.filter(r=>r.type==='手動輪椅').reduce((s,r)=>s+Number(r.count),0);
-    const electric= regs.filter(r=>r.type==='電動輪椅').reduce((s,r)=>s+Number(r.count),0);
-    const scooter = regs.filter(r=>r.type==='電動代步車').reduce((s,r)=>s+Number(r.count),0);
-    const other   = regs.filter(r=>!['手動輪椅','電動輪椅','電動代步車'].includes(r.type)).reduce((s,r)=>s+Number(r.count),0);
-    const status  = total >= 14 ? '已滿額' : total >= 9 ? '接近滿額' : total > 0 ? '正常' : '—';
+    const total    = regs.reduce((s,r) => s + Number(r.count), 0);
+    const ksn      = regs.filter(r=>r.office==='ksn').reduce((s,r)=>s+Number(r.count),0);
+    const pkh      = regs.filter(r=>r.office==='pkh').reduce((s,r)=>s+Number(r.count),0);
+    const selfC    = regs.filter(r=>r.boardingType!=='人車分離').reduce((s,r)=>s+Number(r.count),0);
+    const sepC     = regs.filter(r=>r.boardingType==='人車分離').reduce((s,r)=>s+Number(r.count),0);
+    const manual   = regs.filter(r=>r.type==='手動輪椅').reduce((s,r)=>s+Number(r.count),0);
+    const electric = regs.filter(r=>r.type==='電動輪椅').reduce((s,r)=>s+Number(r.count),0);
+    const scooter  = regs.filter(r=>r.type==='電動代步車').reduce((s,r)=>s+Number(r.count),0);
+    const other    = regs.filter(r=>!['手動輪椅','電動輪椅','電動代步車'].includes(r.type)).reduce((s,r)=>s+Number(r.count),0);
+    const status   = total >= MAX_TOTAL ? '已滿額' : total >= 8 ? '接近滿額' : total > 0 ? '正常' : '—';
 
     totalAll += total; totalKsn += ksn; totalPkh += pkh;
-    if (total >= 14) fullCount++;
-    else if (total >= 9) warnCount++;
+    if (total >= MAX_TOTAL) fullCount++;
+    else if (total >= 8) warnCount++;
 
     summaryData.push([
       v.date, v.departTime, routeLabel(v.route),
-      ksn||'', pkh||'', total||'',
+      ksn||'', pkh||'', selfC||'', sepC||'', total||'',
       manual||'', electric||'', scooter||'', other||'', status
     ]);
   });
 
   summaryData.push(['']);
-  summaryData.push(['合計', '', '', totalKsn, totalPkh, totalAll, '', '', '', '', '']);
+  summaryData.push(['合計', '', '', totalKsn, totalPkh, '', '', totalAll, '', '', '', '', '']);
   summaryData.push(['']);
   summaryData.push([`已滿額航次：${fullCount} 班`, '', `接近滿額航次：${warnCount} 班`]);
   summaryData.push(['']);
@@ -923,13 +1009,13 @@ function exportMonthReport() {
 
   // 欄寬
   ws1['!cols'] = [
-    {wch:14},{wch:10},{wch:14},{wch:14},{wch:14},{wch:10},
+    {wch:14},{wch:10},{wch:14},{wch:12},{wch:12},{wch:12},{wch:12},{wch:10},
     {wch:10},{wch:10},{wch:12},{wch:8},{wch:10}
   ];
   // 合併標題列
   ws1['!merges'] = [
-    {s:{r:0,c:0}, e:{r:0,c:10}},
-    {s:{r:1,c:0}, e:{r:1,c:10}},
+    {s:{r:0,c:0}, e:{r:0,c:12}},
+    {s:{r:1,c:0}, e:{r:1,c:12}},
   ];
 
   XLSX.utils.book_append_sheet(wb, ws1, `${monthLabel}彙總`);
@@ -938,7 +1024,7 @@ function exportMonthReport() {
   const detailData = [
     [`${monthLabel}輪椅登記明細`],
     [''],
-    ['登記時間', '航班日期', '開航時間', '航線', '登記單位', '輪椅類型', '台數', '旅客姓名', '陪伴者', '備註'],
+    ['登記時間', '航班日期', '開航時間', '航線', '登記單位', '登記類型', '輪椅類型', '台數', '旅客姓名', '陪伴者', '備註'],
   ];
 
   const monthRegs = registrations
@@ -955,6 +1041,7 @@ function exportMonthReport() {
       new Date(r.createdAt).toLocaleString('zh-TW'),
       v.date, v.departTime, routeLabel(v.route),
       r.office === 'ksn' ? '高雄售票處' : '馬公售票處',
+      r.boardingType || '自主登輪',
       r.type, Number(r.count), r.name||'', r.companion||'', r.note||''
     ]);
   });
@@ -964,9 +1051,9 @@ function exportMonthReport() {
   const ws2 = XLSX.utils.aoa_to_sheet(detailData);
   ws2['!cols'] = [
     {wch:20},{wch:12},{wch:10},{wch:14},{wch:12},
-    {wch:12},{wch:8},{wch:16},{wch:10},{wch:20}
+    {wch:12},{wch:12},{wch:8},{wch:16},{wch:10},{wch:20}
   ];
-  ws2['!merges'] = [{s:{r:0,c:0}, e:{r:0,c:9}}];
+  ws2['!merges'] = [{s:{r:0,c:0}, e:{r:0,c:10}}];
 
   XLSX.utils.book_append_sheet(wb, ws2, `${monthLabel}明細`);
 
