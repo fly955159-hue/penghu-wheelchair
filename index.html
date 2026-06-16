@@ -174,6 +174,11 @@
     font-size: 16px; padding: 2px 4px; border-radius: 4px; line-height: 1;
   }
   .reg-item .btn-del:hover { background: #fee2e2; }
+  .reg-item .btn-edit {
+    background: none; border: none; cursor: pointer; color: #2563eb;
+    font-size: 14px; padding: 2px 4px; border-radius: 4px; line-height: 1;
+  }
+  .reg-item .btn-edit:hover { background: #dbeafe; }
   .reg-empty { padding: 16px 18px; font-size: 13px; color: var(--text-muted); text-align: center; }
 
   /* companion warning */
@@ -355,13 +360,37 @@
 
 <div class="container">
 
-  <!-- 規則說明 -->
-  <div class="rule-note">
-    <strong>📋 管理規範重點（115.6.16版）：</strong>每航次行動輔具總量上限 <strong>10 台</strong>，分兩類管控：<br>
-    　①　<strong>自主登輪</strong>（輔具隨乘客進入客艙）：每航次上限 <strong>6 台</strong><br>
-    　②　<strong>人車分離</strong>（輔具另行放置於甲板）：每航次上限 <strong>4 台</strong><br>
-    自主登輪額滿後，採人車分離且<strong>無法自行緊急撤離</strong>者，<strong>強制須有陪伴者隨行</strong>。<br>
-    電動代步車尺寸限制：長 ≤130 cm、寬 ≤70 cm、高 ≤145 cm。
+  <!-- 規則說明 + 設施表格 -->
+  <div style="display:flex; gap:16px; margin-bottom:20px; flex-wrap:wrap;">
+    <div class="rule-note" style="margin-bottom:0; flex:1; min-width:280px;">
+      <strong>📋 管理規範重點（115.6.16版）：</strong>每航次行動輔具總量上限 <strong>10 台</strong>，分兩類管控：<br>
+      　①　<strong>自主登輪</strong>（輔具隨乘客進入客艙）：每航次上限 <strong>6 台</strong><br>
+      　②　<strong>人車分離</strong>（輔具另行放置於甲板）：每航次上限 <strong>4 台</strong><br>
+      自主登輪額滿後，採人車分離且<strong>無法自行緊急撤離</strong>者，<strong>強制須有陪伴者隨行</strong>。<br>
+      電動代步車尺寸限制：長 ≤130 cm、寬 ≤70 cm、高 ≤145 cm。
+    </div>
+    <div style="flex:1; min-width:280px; background:#fff; border:1px solid #bfdbfe; border-radius:10px; padding:14px 16px;">
+      <div style="font-size:13px; font-weight:700; color:#1e40af; margin-bottom:8px;">🚢 船上無障礙設施通道寬度</div>
+      <table style="width:100%; border-collapse:collapse; font-size:12px;">
+        <thead>
+          <tr style="background:#eff6ff;">
+            <th style="text-align:left; padding:5px 8px; border:1px solid #bfdbfe; color:#1e3a8a;">設施名稱</th>
+            <th style="text-align:center; padding:5px 8px; border:1px solid #bfdbfe; color:#1e3a8a; white-space:nowrap;">輪椅可通行寬度</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td style="padding:4px 8px; border:1px solid #e0e7ef;">A 甲板層－通道</td><td style="text-align:center; padding:4px 8px; border:1px solid #e0e7ef;">90 公分</td></tr>
+          <tr style="background:#f8faff;"><td style="padding:4px 8px; border:1px solid #e0e7ef;">A 甲板層－特等無障礙房門出入口</td><td style="text-align:center; padding:4px 8px; border:1px solid #e0e7ef;">85 公分</td></tr>
+          <tr><td style="padding:4px 8px; border:1px solid #e0e7ef;">B 甲板層－通道</td><td style="text-align:center; padding:4px 8px; border:1px solid #e0e7ef;">100 公分</td></tr>
+          <tr style="background:#f8faff;"><td style="padding:4px 8px; border:1px solid #e0e7ef;">B 甲板層－公共無障礙廁所門出入口</td><td style="text-align:center; padding:4px 8px; border:1px solid #e0e7ef;">90 公分</td></tr>
+          <tr><td style="padding:4px 8px; border:1px solid #e0e7ef;">C 甲板層－通道</td><td style="text-align:center; padding:4px 8px; border:1px solid #e0e7ef;">95 公分</td></tr>
+          <tr style="background:#f8faff;"><td style="padding:4px 8px; border:1px solid #e0e7ef;">C 甲板層－經濟座艙(C、D區)門出入口</td><td style="text-align:center; padding:4px 8px; border:1px solid #e0e7ef;">95 公分</td></tr>
+          <tr><td style="padding:4px 8px; border:1px solid #e0e7ef;">C 甲板層－臥鋪艙(視隱房)門出入口</td><td style="text-align:center; padding:4px 8px; border:1px solid #e0e7ef;">65 公分</td></tr>
+          <tr style="background:#f8faff;"><td style="padding:4px 8px; border:1px solid #e0e7ef;">C 甲板層－公共無障礙廁所門出入口</td><td style="text-align:center; padding:4px 8px; border:1px solid #e0e7ef;">90 公分</td></tr>
+          <tr><td style="padding:4px 8px; border:1px solid #e0e7ef;">電梯尺寸 (cm)</td><td style="text-align:center; padding:4px 8px; border:1px solid #e0e7ef;">W140 × D190 × H213</td></tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 
   <!-- 日期選擇 -->
@@ -398,10 +427,14 @@
     <div class="modal-voyage-info" id="modalVoyageInfo"></div>
     <div class="form-group">
       <label>登記單位</label>
-      <select id="regOffice">
+      <select id="regOffice" onchange="updateStaffList()">
         <option value="ksn">高雄售票處</option>
         <option value="pkh">馬公售票處</option>
       </select>
+    </div>
+    <div class="form-group">
+      <label>登記人員</label>
+      <select id="regStaff"></select>
     </div>
     <div class="form-group">
       <label>登記類型</label>
@@ -442,7 +475,7 @@
     </div>
     <div class="form-group">
       <label>備註</label>
-      <input type="text" id="regNote" placeholder="可填特殊需求、電話等">
+      <input type="text" id="regNote" placeholder="可填特殊需求等">
     </div>
     <div class="modal-actions">
       <button class="btn-secondary" onclick="closeModal()">取消</button>
@@ -650,6 +683,17 @@ async function deleteRegRemote(regId) {
   }
 }
 
+const STAFF = {
+  ksn: ['王政智','胡珍瑛','林幸茹','陳世翃','鄭乃齊','朱韋菁','顏莛叡'],
+  pkh: ['王萍芳','黃靜雯','陳和馨'],
+};
+
+function updateStaffList() {
+  const office = document.getElementById('regOffice').value;
+  const sel = document.getElementById('regStaff');
+  sel.innerHTML = STAFF[office].map(n => `<option value="${n}">${n}</option>`).join('');
+}
+
 const MAX_TOTAL    = 10; // 每航次總上限
 const MAX_SELF     = 6;  // 自主登輪上限
 const MAX_SEPARATE = 4;  // 人車分離上限
@@ -745,11 +789,12 @@ function buildCard(v) {
         <span class="reg-main">
           <strong>${r.name || '（未填姓名）'}</strong>
           <span style="color:var(--text-muted); font-size:12px;">
-            ${r.boardingType || '自主登輪'}　${r.type} × ${r.count} 台　陪伴:${r.companion}
+            ${r.boardingType || '自主登輪'}　${r.type} × ${r.count} 台　陪伴:${r.companion}　登記:${r.staff || '—'}
             ${r.note ? '　' + r.note : ''}
           </span>
         </span>
         <span class="reg-count">${r.count}</span>
+        <button class="btn-edit" title="編輯此筆" onclick="editReg('${r.id}')">✏️</button>
         <button class="btn-del" title="刪除此筆" onclick="deleteReg('${r.id}')">×</button>
       </div>
     `).join('');
@@ -819,6 +864,7 @@ function updateStats(filtered) {
 // 4. Modal
 // ────────────────────────────────────────────────
 let currentVoyageId = null;
+let editingRegId = null;
 
 function updateRemainHint() {
   if (!currentVoyageId) return;
@@ -860,6 +906,7 @@ function openModal(voyageId) {
   document.getElementById('regName').value = '';
   document.getElementById('regNote').value = '';
   document.getElementById('regCompanion').value = '否';
+  updateStaffList();
   updateRemainHint();
   document.getElementById('modalOverlay').classList.add('open');
 }
@@ -867,6 +914,37 @@ function openModal(voyageId) {
 function closeModal() {
   document.getElementById('modalOverlay').classList.remove('open');
   currentVoyageId = null;
+  editingRegId = null;
+  document.querySelector('.modal h2').textContent = '➕ 新增輪椅登記';
+  document.querySelector('.btn-primary').textContent = '確認登記';
+}
+
+function editReg(regId) {
+  const r = registrations.find(x => x.id === regId);
+  if (!r) return;
+  editingRegId = regId;
+  currentVoyageId = r.voyageId;
+  const v = SCHEDULE.find(x => x.id === r.voyageId);
+  const selfCount     = getVoyageSelfCount(r.voyageId);
+  const separateCount = getVoyageSeparateCount(r.voyageId);
+  const total         = selfCount + separateCount;
+
+  document.querySelector('.modal h2').textContent = '✏️ 編輯輪椅登記';
+  document.querySelector('.btn-primary').textContent = '儲存修改';
+  document.getElementById('modalVoyageInfo').textContent =
+    `${v.date} ${v.departTime}　${routeLabel(v.route)}　合計 ${total}/${MAX_TOTAL} 台（自主 ${selfCount}/${MAX_SELF}、人車分離 ${separateCount}/${MAX_SEPARATE}）`;
+
+  document.getElementById('regOffice').value       = r.office;
+  updateStaffList();
+  document.getElementById('regStaff').value        = r.staff || '';
+  document.getElementById('regBoardingType').value = r.boardingType || '自主登輪';
+  document.getElementById('regType').value         = r.type;
+  document.getElementById('regCount').value        = r.count;
+  document.getElementById('regName').value         = r.name || '';
+  document.getElementById('regCompanion').value    = r.companion || '否';
+  document.getElementById('regNote').value         = r.note || '';
+  updateRemainHint();
+  document.getElementById('modalOverlay').classList.add('open');
 }
 
 function adjustCount(delta) {
@@ -904,12 +982,31 @@ async function submitReg() {
     count,
     name: document.getElementById('regName').value.trim(),
     companion: document.getElementById('regCompanion').value,
+    staff: document.getElementById('regStaff').value,
     note: document.getElementById('regNote').value.trim(),
     createdAt: new Date().toISOString()
   };
 
-  closeModal();
-  await addRegRemote(reg);
+  if (editingRegId) {
+    // 編輯模式：先刪除舊的，再新增
+    reg.id = editingRegId;
+    closeModal();
+    setSyncStatus('syncing');
+    try {
+      await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'delete', id: editingRegId }) });
+      await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'add', ...reg }) });
+      await fetchRegs();
+    } catch(e) {
+      registrations = registrations.filter(r => r.id !== editingRegId);
+      registrations.push(reg);
+      localStorage.setItem('phRegs', JSON.stringify(registrations));
+      setSyncStatus('error', '已暫存本機');
+      renderVoyages();
+    }
+  } else {
+    closeModal();
+    await addRegRemote(reg);
+  }
 }
 
 async function deleteReg(regId) {
