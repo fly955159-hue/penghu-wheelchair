@@ -932,7 +932,7 @@ function editReg(regId) {
 
   document.getElementById('regOffice').value       = r.office;
   updateStaffList();
-  document.getElementById('regStaff').value        = r.staff || '';
+  if (r.staff) document.getElementById('regStaff').value = r.staff;
   document.getElementById('regBoardingType').value = r.boardingType || '自主登輪';
   document.getElementById('regType').value         = r.type;
   document.getElementById('regCount').value        = r.count;
@@ -970,20 +970,24 @@ async function submitReg() {
   };
 
   if (editingRegId) {
-    // 編輯模式：先刪除舊的，再新增
+    // 編輯模式：保留原 ID，更新本機後同步雲端
     reg.id = editingRegId;
+    reg.createdAt = registrations.find(r => r.id === editingRegId)?.createdAt || reg.createdAt;
+    // 先更新本機
+    const idx = registrations.findIndex(r => r.id === editingRegId);
+    if (idx !== -1) registrations[idx] = reg;
+    else registrations.push(reg);
+    localStorage.setItem('phRegs', JSON.stringify(registrations));
     closeModal();
+    renderVoyages();
+    // 再同步雲端（刪舊 + 新增）
     setSyncStatus('syncing');
     try {
       await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'delete', id: editingRegId }) });
       await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'add', ...reg }) });
       await fetchRegs();
     } catch(e) {
-      registrations = registrations.filter(r => r.id !== editingRegId);
-      registrations.push(reg);
-      localStorage.setItem('phRegs', JSON.stringify(registrations));
       setSyncStatus('error', '已暫存本機');
-      renderVoyages();
     }
   } else {
     closeModal();
