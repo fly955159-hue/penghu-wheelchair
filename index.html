@@ -879,10 +879,6 @@ function updateRemainHint() {
   }
   document.getElementById('remainHint').textContent =
     `${boardingType} 尚可登記 ${remain} 台（自主登輪 ${selfCount}/${MAX_SELF}、人車分離 ${separateCount}/${MAX_SEPARATE}）`;
-  document.getElementById('regCount').max = remain;
-  if (parseInt(document.getElementById('regCount').value) > remain) {
-    document.getElementById('regCount').value = Math.max(1, remain);
-  }
 }
 
 function openModal(voyageId) {
@@ -949,7 +945,7 @@ function editReg(regId) {
 
 function adjustCount(delta) {
   const input = document.getElementById('regCount');
-  const val = Math.max(1, Math.min(parseInt(input.max)||14, (parseInt(input.value)||1) + delta));
+  const val = Math.max(1, (parseInt(input.value)||1) + delta);
   input.value = val;
 }
 
@@ -958,20 +954,6 @@ async function submitReg() {
   const count       = parseInt(document.getElementById('regCount').value) || 0;
   const boardingType = document.getElementById('regBoardingType').value;
   if (count < 1) { alert('請輸入至少 1 台'); return; }
-
-  // 檢查各類型剩餘數量
-  const selfCount     = getVoyageSelfCount(currentVoyageId);
-  const separateCount = getVoyageSeparateCount(currentVoyageId);
-  let remain;
-  if (boardingType === '人車分離') {
-    remain = Math.max(0, MAX_SEPARATE - separateCount);
-  } else {
-    remain = Math.max(0, MAX_SELF - selfCount);
-  }
-  if (count > remain) {
-    alert(`${boardingType} 最多還可登記 ${remain} 台，請調整台數或更換登記類型。`);
-    return;
-  }
 
   const reg = {
     id: Date.now().toString(36) + Math.random().toString(36).slice(2,6),
