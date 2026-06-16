@@ -503,6 +503,35 @@
       <label>備註</label>
       <input type="text" id="regNote" placeholder="可填特殊需求等">
     </div>
+
+    <!-- 通知清單 -->
+    <div style="border-top:1px solid var(--border); margin-top:14px; padding-top:14px;">
+      <div style="font-size:13px; font-weight:700; color:#1e40af; margin-bottom:10px;">📋 通知清單</div>
+      <div style="display:flex; flex-direction:column; gap:8px;">
+        <label style="display:flex; align-items:center; gap:8px; font-size:13px; cursor:pointer;">
+          <input type="checkbox" id="modal_cl_n1" style="width:16px;height:16px;accent-color:var(--primary);">
+          已通知票務群組告知事務長輪椅數量
+        </label>
+        <label style="display:flex; align-items:center; gap:8px; font-size:13px; cursor:pointer;">
+          <input type="checkbox" id="modal_cl_n2" style="width:16px;height:16px;accent-color:var(--primary);">
+          已通知旅服所，並請志工協助指引
+        </label>
+        <label style="display:flex; align-items:flex-start; gap:8px; font-size:13px; cursor:pointer;">
+          <input type="checkbox" id="modal_cl_n3" style="width:16px;height:16px;accent-color:var(--primary);margin-top:2px;flex-shrink:0;">
+          <span>已與海巡協調告知通關時間
+            <input type="text" id="modal_cl_time" placeholder="HH:MM"
+              style="border:1px solid var(--border);border-radius:5px;padding:2px 7px;font-size:13px;width:80px;margin:0 4px;"
+              onclick="event.stopPropagation()">
+            ，並請他們配合查驗時間
+          </span>
+        </label>
+        <label style="display:flex; align-items:center; gap:8px; font-size:13px; cursor:pointer;">
+          <input type="checkbox" id="modal_cl_n4" style="width:16px;height:16px;accent-color:var(--primary);">
+          已與負責人告知提早通關時間，登/離船採先上後下為主
+        </label>
+      </div>
+    </div>
+
     <div class="modal-actions">
       <button class="btn-secondary" onclick="closeModal()">取消</button>
       <button class="btn-primary" onclick="submitReg()">確認登記</button>
@@ -1035,8 +1064,28 @@ function openModal(voyageId) {
   document.getElementById('regNote').value = '';
   document.getElementById('regCompanion').value = '否';
   updateStaffList();
+  loadModalChecklist(voyageId);
   updateRemainHint();
   document.getElementById('modalOverlay').classList.add('open');
+}
+
+function loadModalChecklist(voyageId) {
+  const cl = checklists[voyageId] || {};
+  document.getElementById('modal_cl_n1').checked = !!cl.n1;
+  document.getElementById('modal_cl_n2').checked = !!cl.n2;
+  document.getElementById('modal_cl_n3').checked = !!cl.n3;
+  document.getElementById('modal_cl_n4').checked = !!cl.n4;
+  document.getElementById('modal_cl_time').value  = cl.time || '';
+}
+
+function saveModalChecklist(voyageId) {
+  if (!checklists[voyageId]) checklists[voyageId] = {};
+  checklists[voyageId].n1   = document.getElementById('modal_cl_n1').checked;
+  checklists[voyageId].n2   = document.getElementById('modal_cl_n2').checked;
+  checklists[voyageId].n3   = document.getElementById('modal_cl_n3').checked;
+  checklists[voyageId].n4   = document.getElementById('modal_cl_n4').checked;
+  checklists[voyageId].time = document.getElementById('modal_cl_time').value;
+  saveChecklistRemote(voyageId);
 }
 
 function closeModal() {
@@ -1100,6 +1149,9 @@ async function submitReg() {
     note: document.getElementById('regNote').value.trim(),
     createdAt: new Date().toISOString()
   };
+
+  // 儲存通知清單
+  saveModalChecklist(currentVoyageId);
 
   if (editingRegId) {
     // 編輯模式：保留原 ID，更新本機後同步雲端
