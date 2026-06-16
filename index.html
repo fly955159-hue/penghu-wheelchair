@@ -1057,9 +1057,11 @@ function genSerial(voyageId) {
   const [yr, mo, dy] = v.date.split('-');
   const rocYr = parseInt(yr) - 1911;
   const dir = v.route === 'KSN→PKH' ? 'K' : 'P';
-  const existing = getVoyageRegs(voyageId).length;
-  const seq = String(existing + 1).padStart(2, '0');
-  return `${dir}-${rocYr}${mo}${dy}-${seq}`;
+  const now = new Date();
+  const hh = String(now.getHours()).padStart(2, '0');
+  const mm = String(now.getMinutes()).padStart(2, '0');
+  const ss = String(now.getSeconds()).padStart(2, '0');
+  return `${dir}-${rocYr}${mo}${dy}-${hh}${mm}${ss}`;
 }
 
 function openModal(voyageId) {
