@@ -523,7 +523,8 @@
           <span>已與海巡協調告知通關時間
             <input type="number" id="modal_cl_hh" placeholder="時" min="0" max="23"
               style="border:1px solid var(--border);border-radius:5px;padding:2px 6px;font-size:13px;width:52px;text-align:center;margin-left:4px;"
-              onclick="event.stopPropagation()">
+              onclick="event.stopPropagation()"
+              oninput="if(this.value.length>=2) document.getElementById('modal_cl_mm').focus()">
             <span style="font-weight:700; margin:0 2px;">:</span>
             <input type="number" id="modal_cl_mm" placeholder="分" min="0" max="59"
               style="border:1px solid var(--border);border-radius:5px;padding:2px 6px;font-size:13px;width:52px;text-align:center;margin-right:4px;"
