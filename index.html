@@ -980,11 +980,12 @@ async function submitReg() {
     localStorage.setItem('phRegs', JSON.stringify(registrations));
     closeModal();
     renderVoyages();
-    // 再同步雲端（刪舊 + 新增）
+    // 再同步雲端（刪舊 + 新增），等 Apps Script 寫入後再拉
     setSyncStatus('syncing');
     try {
-      await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'delete', id: editingRegId }) });
+      await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'delete', id: reg.id }) });
       await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'add', ...reg }) });
+      await new Promise(r => setTimeout(r, 2000));
       await fetchRegs();
     } catch(e) {
       setSyncStatus('error', '已暫存本機');
