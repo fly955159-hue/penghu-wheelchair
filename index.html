@@ -870,13 +870,37 @@ function buildCard(v) {
 }
 
 // ────────────────────────────────────────────────
-// 通知清單
+// 通知清單（雲端同步）
 // ────────────────────────────────────────────────
-function getChecklist(voyageId) {
-  return JSON.parse(localStorage.getItem('phCL_' + voyageId) || '{}');
+let checklists = {}; // { voyageId: { n1, n2, n3, n4, time } }
+
+async function fetchChecklists() {
+  if (!API_URL) return;
+  try {
+    const res = await fetch(API_URL + '?type=checklist', { cache: 'no-store' });
+    if (!res.ok) return;
+    const data = await res.json();
+    if (Array.isArray(data)) {
+      checklists = {};
+      data.forEach(cl => { checklists[cl.voyageId] = cl; });
+      renderVoyages();
+    }
+  } catch(e) {}
 }
-function saveChecklist(voyageId, data) {
-  localStorage.setItem('phCL_' + voyageId, JSON.stringify(data));
+
+async function saveChecklistRemote(voyageId) {
+  if (!API_URL) return;
+  const cl = checklists[voyageId] || {};
+  try {
+    await fetch(API_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'updateChecklist', voyageId, ...cl }),
+    });
+  } catch(e) {}
+}
+
+function getChecklist(voyageId) {
+  return checklists[voyageId] || {};
 }
 
 function buildChecklist(voyageId) {
@@ -926,13 +950,11 @@ function toggleChecklist(voyageId, btn) {
 }
 
 function updateCheck(voyageId, key, el) {
-  const cl = getChecklist(voyageId);
-  cl[key] = el.checked;
-  saveChecklist(voyageId, cl);
+  if (!checklists[voyageId]) checklists[voyageId] = {};
+  checklists[voyageId][key] = el.checked;
   const label = el.nextElementSibling;
   if (label) label.className = el.checked ? 'checked' : '';
-  // 更新 badge
-  const done = ['n1','n2','n3','n4'].filter(k => cl[k]).length;
+  const done = ['n1','n2','n3','n4'].filter(k => checklists[voyageId][k]).length;
   const toggle = el.closest('.checklist-wrap').querySelector('.checklist-toggle');
   const badge = toggle.querySelector('span.badge') || (() => {
     const s = document.createElement('span');
@@ -943,12 +965,13 @@ function updateCheck(voyageId, key, el) {
   })();
   badge.textContent = done > 0 ? `${done}/4` : '';
   badge.style.display = done > 0 ? '' : 'none';
+  saveChecklistRemote(voyageId);
 }
 
 function updateTime(voyageId, val) {
-  const cl = getChecklist(voyageId);
-  cl.time = val;
-  saveChecklist(voyageId, cl);
+  if (!checklists[voyageId]) checklists[voyageId] = {};
+  checklists[voyageId].time = val;
+  saveChecklistRemote(voyageId);
 }
 
 function updateStats(filtered) {
@@ -1122,10 +1145,10 @@ document.addEventListener('DOMContentLoaded', () => {
   renderVoyages();
 
   // 首次載入從雲端抓資料
-  if (API_URL) fetchRegs();
+  if (API_URL) { fetchRegs(); fetchChecklists(); }
 
   // 每 30 秒自動同步一次
-  if (API_URL) setInterval(fetchRegs, 30000);
+  if (API_URL) setInterval(() => { fetchRegs(); fetchChecklists(); }, 30000);
 
   // close modal on overlay click
   document.getElementById('modalOverlay').addEventListener('click', e => {
