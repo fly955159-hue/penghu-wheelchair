@@ -179,6 +179,32 @@
     font-size: 14px; padding: 2px 4px; border-radius: 4px; line-height: 1;
   }
   .reg-item .btn-edit:hover { background: #dbeafe; }
+
+  /* ── Checklist ── */
+  .checklist-wrap {
+    border-top: 1px solid var(--border);
+  }
+  .checklist-toggle {
+    width: 100%; background: #f8faff; border: none; cursor: pointer;
+    padding: 9px 18px; font-size: 13px; font-weight: 600; color: #2563eb;
+    text-align: left; font-family: inherit; display: flex; align-items: center; gap: 6px;
+  }
+  .checklist-toggle:hover { background: #eff6ff; }
+  .checklist-body {
+    display: none; padding: 12px 18px 14px; background: #f8faff;
+    border-top: 1px solid #dbeafe;
+  }
+  .checklist-body.open { display: block; }
+  .checklist-item {
+    display: flex; align-items: flex-start; gap: 8px;
+    padding: 6px 0; border-bottom: 1px solid #e0e7ef; font-size: 13px;
+  }
+  .checklist-item:last-child { border-bottom: none; }
+  .checklist-item input[type=checkbox] { margin-top: 2px; width: 16px; height: 16px; cursor: pointer; accent-color: var(--primary); flex-shrink: 0; }
+  .checklist-item label { cursor: pointer; line-height: 1.5; }
+  .checklist-item label.checked { color: var(--text-muted); text-decoration: line-through; }
+  .checklist-time { border: 1px solid var(--border); border-radius: 5px; padding: 2px 7px; font-size: 13px; font-family: inherit; width: 90px; margin-left: 4px; }
+  .checklist-time:focus { outline: none; border-color: var(--primary); }
   .reg-empty { padding: 16px 18px; font-size: 13px; color: var(--text-muted); text-align: center; }
 
   /* companion warning */
@@ -833,6 +859,7 @@ function buildCard(v) {
     <div class="status-text status-${status}" style="padding-top:10px">${statusText(selfCount, separateCount)}</div>
     ${companionHTML}
     <div class="reg-list">${regItems}</div>
+    ${buildChecklist(v.id)}
     <div class="btn-add-wrap">
       <button class="btn-add" ${isFull ? 'disabled' : ''} onclick="openModal('${v.id}')">
         ${isFull ? `此航次已達 ${MAX_TOTAL} 台上限` : '＋ 登記輪椅旅客'}
@@ -840,6 +867,88 @@ function buildCard(v) {
     </div>
   `;
   return card;
+}
+
+// ────────────────────────────────────────────────
+// 通知清單
+// ────────────────────────────────────────────────
+function getChecklist(voyageId) {
+  return JSON.parse(localStorage.getItem('phCL_' + voyageId) || '{}');
+}
+function saveChecklist(voyageId, data) {
+  localStorage.setItem('phCL_' + voyageId, JSON.stringify(data));
+}
+
+function buildChecklist(voyageId) {
+  const cl = getChecklist(voyageId);
+  const c1 = cl.n1 ? 'checked' : '';
+  const c2 = cl.n2 ? 'checked' : '';
+  const c3 = cl.n3 ? 'checked' : '';
+  const c4 = cl.n4 ? 'checked' : '';
+  const time = cl.time || '';
+  const done = [cl.n1,cl.n2,cl.n3,cl.n4].filter(Boolean).length;
+  return `
+  <div class="checklist-wrap">
+    <button class="checklist-toggle" onclick="toggleChecklist('${voyageId}',this)">
+      📋 通知清單 ${done > 0 ? `<span style="background:#16a34a;color:#fff;border-radius:99px;padding:1px 8px;font-size:11px;">${done}/4</span>` : ''}
+      <span style="margin-left:auto">▼</span>
+    </button>
+    <div class="checklist-body" id="cl_${voyageId}">
+      <div class="checklist-item">
+        <input type="checkbox" id="cl_${voyageId}_1" ${c1} onchange="updateCheck('${voyageId}','n1',this)">
+        <label for="cl_${voyageId}_1" class="${cl.n1?'checked':''}">已通知票務群組告知事務長輪椅數量</label>
+      </div>
+      <div class="checklist-item">
+        <input type="checkbox" id="cl_${voyageId}_2" ${c2} onchange="updateCheck('${voyageId}','n2',this)">
+        <label for="cl_${voyageId}_2" class="${cl.n2?'checked':''}">已通知旅服所，並請志工協助指引</label>
+      </div>
+      <div class="checklist-item">
+        <input type="checkbox" id="cl_${voyageId}_3" ${c3} onchange="updateCheck('${voyageId}','n3',this)">
+        <label for="cl_${voyageId}_3" class="${cl.n3?'checked':''}">已與海巡協調告知通關時間
+          <input class="checklist-time" type="text" placeholder="HH:MM" value="${time}"
+            onclick="event.stopPropagation()"
+            onchange="updateTime('${voyageId}',this.value)">
+          ，並請他們配合查驗時間
+        </label>
+      </div>
+      <div class="checklist-item">
+        <input type="checkbox" id="cl_${voyageId}_4" ${c4} onchange="updateCheck('${voyageId}','n4',this)">
+        <label for="cl_${voyageId}_4" class="${cl.n4?'checked':''}">已與負責人告知提早通關時間，登/離船採先上後下為主</label>
+      </div>
+    </div>
+  </div>`;
+}
+
+function toggleChecklist(voyageId, btn) {
+  const body = document.getElementById('cl_' + voyageId);
+  const isOpen = body.classList.toggle('open');
+  btn.querySelector('span:last-child').textContent = isOpen ? '▲' : '▼';
+}
+
+function updateCheck(voyageId, key, el) {
+  const cl = getChecklist(voyageId);
+  cl[key] = el.checked;
+  saveChecklist(voyageId, cl);
+  const label = el.nextElementSibling;
+  if (label) label.className = el.checked ? 'checked' : '';
+  // 更新 badge
+  const done = ['n1','n2','n3','n4'].filter(k => cl[k]).length;
+  const toggle = el.closest('.checklist-wrap').querySelector('.checklist-toggle');
+  const badge = toggle.querySelector('span.badge') || (() => {
+    const s = document.createElement('span');
+    s.className = 'badge';
+    s.style.cssText = 'background:#16a34a;color:#fff;border-radius:99px;padding:1px 8px;font-size:11px;';
+    toggle.insertBefore(s, toggle.querySelector('span:last-child'));
+    return s;
+  })();
+  badge.textContent = done > 0 ? `${done}/4` : '';
+  badge.style.display = done > 0 ? '' : 'none';
+}
+
+function updateTime(voyageId, val) {
+  const cl = getChecklist(voyageId);
+  cl.time = val;
+  saveChecklist(voyageId, cl);
 }
 
 function updateStats(filtered) {
