@@ -453,6 +453,9 @@
   <div class="modal">
     <h2>➕ 新增輪椅登記</h2>
     <div class="modal-voyage-info" id="modalVoyageInfo"></div>
+    <div style="background:#eff6ff;border-radius:8px;padding:8px 14px;margin-bottom:14px;font-size:13px;color:#1e40af;font-weight:700;">
+      登記序號：<span id="regSerial">—</span>
+    </div>
     <div class="form-group">
       <label>登記單位</label>
       <select id="regOffice" onchange="updateStaffList()">
@@ -490,7 +493,7 @@
       <div class="hint" id="remainHint"></div>
     </div>
     <div class="form-group">
-      <label>旅客/聯絡人姓名（可填團體名稱）</label>
+      <label>旅客/聯絡人姓名（可填訂位代碼）</label>
       <input type="text" id="regName" placeholder="例：王先生、某某基金會">
     </div>
     <div class="form-group">
@@ -851,7 +854,7 @@ function buildCard(v) {
         <span class="reg-main">
           <strong>${r.name || '（未填姓名）'}</strong>
           <span style="color:var(--text-muted); font-size:12px;">
-            ${r.boardingType || '自主登輪'}　${r.type} × ${r.count} 台　陪伴:${r.companion}　登記:${r.staff || '—'}
+            ${r.serial ? `<span style="color:var(--primary);font-weight:700;">${r.serial}</span>　` : ''}${r.boardingType || '自主登輪'}　${r.type} × ${r.count} 台　陪伴:${r.companion}　登記:${r.staff || '—'}
             ${r.note ? '　' + r.note : ''}
           </span>
         </span>
@@ -1048,6 +1051,17 @@ function updateRemainHint() {
     `${boardingType} 尚可登記 ${remain} 台（自主登輪 ${selfCount}/${MAX_SELF}、人車分離 ${separateCount}/${MAX_SEPARATE}）`;
 }
 
+function genSerial(voyageId) {
+  const v = SCHEDULE.find(x => x.id === voyageId);
+  if (!v) return '—';
+  const [yr, mo, dy] = v.date.split('-');
+  const rocYr = parseInt(yr) - 1911;
+  const dir = v.route === 'KSN→PKH' ? 'K' : 'P';
+  const existing = getVoyageRegs(voyageId).length;
+  const seq = String(existing + 1).padStart(2, '0');
+  return `${dir}-${rocYr}${mo}${dy}-${seq}`;
+}
+
 function openModal(voyageId) {
   currentVoyageId = voyageId;
   const v = SCHEDULE.find(x => x.id === voyageId);
@@ -1065,6 +1079,7 @@ function openModal(voyageId) {
     document.getElementById('regBoardingType').value = '自主登輪';
   }
 
+  document.getElementById('regSerial').textContent = genSerial(voyageId);
   document.getElementById('regCount').value = 1;
   document.getElementById('regName').value = '';
   document.getElementById('regNote').value = '';
@@ -1125,6 +1140,7 @@ function editReg(regId) {
   updateStaffList();
   if (r.staff) document.getElementById('regStaff').value = r.staff;
   document.getElementById('regBoardingType').value = r.boardingType || '自主登輪';
+  document.getElementById('regSerial').textContent = r.serial || '—';
   document.getElementById('regType').value         = r.type;
   document.getElementById('regCount').value        = r.count;
   document.getElementById('regName').value         = r.name || '';
@@ -1157,6 +1173,7 @@ async function submitReg() {
     companion: document.getElementById('regCompanion').value,
     staff: document.getElementById('regStaff').value,
     note: document.getElementById('regNote').value.trim(),
+    serial: editingRegId ? (registrations.find(r=>r.id===editingRegId)?.serial || document.getElementById('regSerial').textContent) : document.getElementById('regSerial').textContent,
     createdAt: new Date().toISOString()
   };
 
