@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>澎湖輪｜無障礙輪椅搭乘登記系統</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚢</text></svg>">
 <style>
   :root {
     --primary: #1a5fa8;
@@ -225,6 +226,21 @@
     color: #14532d;
     border-left: 3px solid #22c55e;
   }
+  .clearance-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 0 18px 14px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    background: #eff6ff;
+    border: 1px dashed #93c5fd;
+    color: #1e3a8a;
+  }
+  .clearance-row.set { background: #e0edff; border-style: solid; }
+  .clearance-row:hover { background: #dbeafe; }
 
   /* add button */
   .btn-add-wrap { padding: 12px 18px; border-top: 1px solid var(--border); }
@@ -324,6 +340,37 @@
     padding: 7px 12px; font-size: 14px; font-family: inherit; outline: none;
   }
   .date-nav input[type=date]:focus { border-color: var(--primary); }
+
+  /* ── Search panel (出發地 + 日期) ── */
+  .search-panel {
+    background: var(--card);
+    border-radius: 14px;
+    padding: 22px 24px;
+    margin-bottom: 24px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+  }
+  .search-panel .search-title { font-size: 17px; font-weight: 700; margin-bottom: 16px; }
+  .search-fields { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
+  .search-field {
+    flex: 1; min-width: 200px;
+    display: flex; flex-direction: column; gap: 4px;
+    background: #f7f9fc; border: 1.5px solid var(--border);
+    border-radius: 10px; padding: 10px 16px;
+    transition: border-color 0.2s;
+  }
+  .search-field:focus-within { border-color: var(--primary); }
+  .search-field label { font-size: 12px; font-weight: 600; color: var(--text-muted); display:flex; align-items:center; gap:6px; }
+  .search-field select, .search-field input {
+    border: none; background: transparent; font-size: 16px;
+    font-family: inherit; font-weight: 600; color: var(--text);
+    outline: none; padding: 2px 0; width: 100%;
+  }
+  .search-btn {
+    width: 100%; background: var(--primary); color: #fff; border: none;
+    border-radius: 10px; padding: 13px; font-size: 16px; font-weight: 700;
+    font-family: inherit; cursor: pointer; transition: background 0.2s;
+  }
+  .search-btn:hover { background: var(--primary-dark); }
   .no-voyages {
     background: var(--card); border-radius: 12px; padding: 40px;
     text-align: center; color: var(--text-muted); font-size: 15px;
@@ -375,6 +422,111 @@
 </head>
 <body>
 
+<!-- 登入畫面 -->
+<div id="loginScreen" style="position:fixed;inset:0;z-index:9999;background:linear-gradient(135deg,#1e3a8a,#2563eb);display:none;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:16px;padding:32px 28px;width:340px;max-width:90vw;box-shadow:0 20px 50px rgba(0,0,0,.3);">
+    <div style="text-align:center;margin-bottom:20px;">
+      <div style="font-size:32px;">🚢</div>
+      <div style="font-size:18px;font-weight:800;color:#1e3a8a;margin-top:6px;">澎湖輪輪椅登記系統</div>
+      <div style="font-size:13px;color:#6b7280;margin-top:2px;">請登入後使用</div>
+    </div>
+    <form id="loginForm" onsubmit="doLogin();return false;">
+    <label style="font-size:13px;font-weight:600;color:#374151;">帳號</label>
+    <input id="loginUser" name="username" type="text" autocomplete="username"
+      style="width:100%;box-sizing:border-box;margin:4px 0 14px;padding:10px;border:1.5px solid #d1d5db;border-radius:8px;font-size:15px;">
+    <label style="font-size:13px;font-weight:600;color:#374151;">密碼</label>
+    <div style="position:relative;margin:4px 0 12px;">
+      <input id="loginPass" name="password" type="password" autocomplete="current-password"
+        style="width:100%;box-sizing:border-box;padding:10px 40px 10px 10px;border:1.5px solid #d1d5db;border-radius:8px;font-size:15px;">
+      <button type="button" id="togglePass" onclick="togglePassword()" title="顯示/隱藏密碼"
+        style="position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:17px;padding:4px;line-height:1;">👁</button>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;font-size:13px;">
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;color:#374151;">
+        <input type="checkbox" id="loginRemember" style="width:15px;height:15px;accent-color:#2563eb;">記住我（30 天免登）
+      </label>
+      <a href="#" onclick="forgotPassword();return false;" style="color:#2563eb;text-decoration:none;">忘記密碼？</a>
+    </div>
+    <div id="loginError" style="color:#dc2626;font-size:13px;min-height:18px;margin-bottom:8px;"></div>
+    <button id="loginBtn" type="submit"
+      style="width:100%;padding:11px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer;">登入</button>
+    </form>
+  </div>
+</div>
+
+<!-- 管理者後台：操作紀錄 -->
+<div id="auditOverlay" style="position:fixed;inset:0;z-index:9000;background:rgba(15,23,42,.55);display:none;align-items:flex-start;justify-content:center;padding:24px 12px;overflow:auto;">
+  <div style="background:#fff;border-radius:14px;width:1000px;max-width:96vw;box-shadow:0 20px 50px rgba(0,0,0,.3);">
+    <div style="display:flex;align-items:center;gap:10px;padding:16px 20px;border-bottom:1px solid #e5e7eb;">
+      <div style="font-size:17px;font-weight:800;color:#1e3a8a;">📋 操作紀錄（管理者後台）</div>
+      <span id="auditCount" style="font-size:12px;color:#6b7280;"></span>
+      <button onclick="closeAuditLog()" style="margin-left:auto;font-size:14px;padding:5px 12px;background:#f3f4f6;border:1px solid #d1d5db;border-radius:7px;cursor:pointer;">關閉</button>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;padding:12px 20px;background:#f8fafc;border-bottom:1px solid #e5e7eb;font-size:13px;">
+      <div>使用者：<select id="auditFilterUser" onchange="renderAuditTable()" style="padding:4px 6px;border:1px solid #d1d5db;border-radius:6px;"><option value="">全部</option></select></div>
+      <div>動作：<select id="auditFilterAction" onchange="renderAuditTable()" style="padding:4px 6px;border:1px solid #d1d5db;border-radius:6px;">
+        <option value="">全部</option><option value="add">新增</option><option value="edit">修改</option><option value="delete">刪除</option><option value="setVoyageTime">設定通關時間</option><option value="login">登入</option><option value="logout">登出</option>
+      </select></div>
+      <div>日期：<input type="date" id="auditFilterDate" onchange="renderAuditTable()" style="padding:4px 6px;border:1px solid #d1d5db;border-radius:6px;"></div>
+      <button onclick="clearAuditFilters()" style="padding:4px 10px;background:#fff;border:1px solid #d1d5db;border-radius:6px;cursor:pointer;">清除篩選</button>
+    </div>
+    <div style="max-height:70vh;overflow:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead style="position:sticky;top:0;background:#1e3a8a;color:#fff;">
+          <tr>
+            <th style="text-align:left;padding:8px 12px;white-space:nowrap;">時間</th>
+            <th style="text-align:left;padding:8px 12px;white-space:nowrap;">操作者</th>
+            <th style="text-align:left;padding:8px 12px;white-space:nowrap;">動作</th>
+            <th style="text-align:left;padding:8px 12px;white-space:nowrap;">序號</th>
+            <th style="text-align:left;padding:8px 12px;">內容 / 變更</th>
+          </tr>
+        </thead>
+        <tbody id="auditTableBody"></tbody>
+      </table>
+      <div id="auditEmpty" style="display:none;padding:30px;text-align:center;color:#9ca3af;">沒有符合的紀錄</div>
+    </div>
+  </div>
+</div>
+
+<!-- 管理者後台：帳號管理 -->
+<div id="userOverlay" style="position:fixed;inset:0;z-index:9000;background:rgba(15,23,42,.55);display:none;align-items:flex-start;justify-content:center;padding:24px 12px;overflow:auto;">
+  <div style="background:#fff;border-radius:14px;width:860px;max-width:96vw;box-shadow:0 20px 50px rgba(0,0,0,.3);">
+    <div style="display:flex;align-items:center;gap:10px;padding:16px 20px;border-bottom:1px solid #e5e7eb;">
+      <div style="font-size:17px;font-weight:800;color:#1e3a8a;">👥 帳號管理（管理者後台）</div>
+      <button onclick="closeUserMgmt()" style="margin-left:auto;font-size:14px;padding:5px 12px;background:#f3f4f6;border:1px solid #d1d5db;border-radius:7px;cursor:pointer;">關閉</button>
+    </div>
+    <!-- 新增帳號 -->
+    <div style="padding:14px 20px;background:#f8fafc;border-bottom:1px solid #e5e7eb;">
+      <div style="font-size:13px;font-weight:700;color:#374151;margin-bottom:8px;">➕ 新增帳號</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;font-size:13px;">
+        <div><div style="color:#6b7280;margin-bottom:2px;">帳號</div><input id="nuUser" type="text" style="width:120px;padding:5px 7px;border:1px solid #d1d5db;border-radius:6px;"></div>
+        <div><div style="color:#6b7280;margin-bottom:2px;">顯示名稱</div><input id="nuName" type="text" style="width:120px;padding:5px 7px;border:1px solid #d1d5db;border-radius:6px;"></div>
+        <div><div style="color:#6b7280;margin-bottom:2px;">密碼</div><input id="nuPass" type="text" style="width:120px;padding:5px 7px;border:1px solid #d1d5db;border-radius:6px;"></div>
+        <div><div style="color:#6b7280;margin-bottom:2px;">角色</div><select id="nuRole" style="padding:5px 7px;border:1px solid #d1d5db;border-radius:6px;"><option value="staff">操作員</option><option value="viewer">唯讀</option><option value="admin">管理者</option></select></div>
+        <div><div style="color:#6b7280;margin-bottom:2px;">單位</div><select id="nuOffice" style="padding:5px 7px;border:1px solid #d1d5db;border-radius:6px;"><option value="">不限</option><option value="ksn">高雄</option><option value="pkh">馬公</option></select></div>
+        <button onclick="submitNewUser()" style="padding:6px 14px;background:#2563eb;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;">新增</button>
+      </div>
+      <div id="nuMsg" style="font-size:12px;margin-top:6px;min-height:16px;"></div>
+    </div>
+    <!-- 帳號列表 -->
+    <div style="max-height:60vh;overflow:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead style="position:sticky;top:0;background:#1e3a8a;color:#fff;">
+          <tr>
+            <th style="text-align:left;padding:8px 12px;">帳號</th>
+            <th style="text-align:left;padding:8px 12px;">名稱</th>
+            <th style="text-align:left;padding:8px 12px;">角色</th>
+            <th style="text-align:left;padding:8px 12px;">單位</th>
+            <th style="text-align:left;padding:8px 12px;">狀態</th>
+            <th style="text-align:left;padding:8px 12px;">操作</th>
+          </tr>
+        </thead>
+        <tbody id="userTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
 <header>
   <div>
     <h1>🚢 澎湖輪｜無障礙輪椅搭乘登記</h1>
@@ -383,6 +535,12 @@
   <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;margin-left:auto;">
     <div class="header-badge" id="todayBadge"></div>
     <span class="sync-badge sync-local" id="syncBadge">僅本機儲存</span>
+    <span id="userBox" style="display:none;font-size:12px;color:#fff;">
+      <span id="userName"></span>
+      <button id="auditBtn" onclick="openAuditLog()" style="display:none;margin:0 4px;font-size:12px;padding:3px 9px;background:rgba(255,255,255,.18);color:#fff;border:1px solid rgba(255,255,255,.5);border-radius:6px;cursor:pointer;">📋 操作紀錄</button>
+      <button id="userBtn" onclick="openUserMgmt()" style="display:none;margin:0 4px;font-size:12px;padding:3px 9px;background:rgba(255,255,255,.18);color:#fff;border:1px solid rgba(255,255,255,.5);border-radius:6px;cursor:pointer;">👥 帳號管理</button>
+      <a href="#" onclick="doLogout();return false;" style="color:#fff;text-decoration:underline;">登出</a>
+    </span>
   </div>
 </header>
 
@@ -396,6 +554,16 @@
       　②　<strong>人車分離</strong>（輔具另行放置於甲板）：每航次上限 <strong>4 台</strong><br>
       自主登輪額滿後，採人車分離且<strong>無法自行緊急撤離</strong>者，<strong>強制須有陪伴者隨行</strong>。<br>
       電動代步車尺寸限制：長 ≤130 cm、寬 ≤70 cm、高 ≤145 cm。
+      <div style="margin-top:10px; padding-top:10px; border-top:1px dashed #bfdbfe;">
+        <strong style="color:#1e40af;">🛂 通關時間參考：</strong><br>
+        <strong>高雄</strong><br>
+        ・日航：4 台以下，與一般旅客相同通關時間；<strong>4 台以上提早 15 分鐘（07:45 通關）</strong><br>
+        ・夜航：通關時間以當天夜航人數而訂<br>
+        <strong>澎湖</strong><br>
+        ・09:00 開船 → <strong>07:40 通關</strong><br>
+        ・15:30 開船 → <strong>13:50 通關</strong><br>
+        ・16:00 開船 → <strong>14:10 通關</strong>
+      </div>
     </div>
     <div style="flex:1; min-width:280px; background:#fff; border:1px solid #bfdbfe; border-radius:10px; padding:14px 16px;">
       <div style="font-size:13px; font-weight:700; color:#1e40af; margin-bottom:8px;">🚢 船上無障礙設施通道寬度</div>
@@ -421,11 +589,24 @@
     </div>
   </div>
 
-  <!-- 日期選擇 -->
-  <div class="date-nav">
-    <h2>航次登記一覽</h2>
-    <input type="date" id="dateFilter" onchange="renderVoyages()">
-    <span style="font-size:13px; color:var(--text-muted);">（顯示該日所有航次）</span>
+  <!-- 航班搜尋（出發地 + 日期） -->
+  <div class="search-panel">
+    <h2 class="search-title">航次登記一覽</h2>
+    <div class="search-fields">
+      <div class="search-field">
+        <label>🚢 出發地</label>
+        <select id="originFilter" onchange="renderVoyages()">
+          <option value="ksn">高雄</option>
+          <option value="pkh">馬公</option>
+          <option value="all">全部（高雄＋馬公）</option>
+        </select>
+      </div>
+      <div class="search-field">
+        <label>📅 去程日期</label>
+        <input type="date" id="dateFilter" onchange="renderVoyages()">
+      </div>
+    </div>
+    <button class="search-btn" onclick="renderVoyages()">🔍 搜尋航班</button>
   </div>
 
   <!-- 統計列 -->
@@ -435,7 +616,7 @@
     <div class="stat"><div class="num" id="statVoyages">0</div><div class="lbl">已登記航次數</div></div>
     <div class="stat"><div class="num" id="statFull">0</div><div class="lbl">已滿額航次</div></div>
     <div class="stat"><div class="num" id="statWarn">0</div><div class="lbl">接近滿額(9~13台)</div></div>
-    <button class="btn-export" onclick="exportMonthReport()">📊 匯出本月報表</button>
+    <button class="btn-export" id="exportBtn" onclick="exportMonthReport()">📊 匯出本月報表</button>
   </div>
 
   <!-- 航次卡片 -->
@@ -453,44 +634,67 @@
   <div class="modal">
     <h2>➕ 新增輪椅登記</h2>
     <div class="modal-voyage-info" id="modalVoyageInfo"></div>
+    <div id="roundTripInfo" style="display:none;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:8px;padding:8px 14px;margin-bottom:14px;font-size:13px;color:#6d28d9;font-weight:600;"></div>
     <div style="background:#eff6ff;border-radius:8px;padding:8px 14px;margin-bottom:14px;font-size:13px;color:#1e40af;font-weight:700;">
       登記序號：<span id="regSerial">—</span>
     </div>
     <div class="form-group">
       <label>登記單位</label>
-      <select id="regOffice" onchange="updateStaffList()">
+      <select id="regOffice">
         <option value="ksn">高雄售票處</option>
         <option value="pkh">馬公售票處</option>
       </select>
     </div>
     <div class="form-group">
-      <label>登記人員</label>
-      <select id="regStaff"></select>
+      <label>登記人員（登入者）</label>
+      <div id="regStaffDisplay" style="padding:10px;border:1.5px solid #d1d5db;border-radius:8px;background:#f8fafc;color:#374151;font-size:15px;">—</div>
     </div>
     <div class="form-group">
-      <label>登記類型</label>
-      <select id="regBoardingType" onchange="updateRemainHint()">
-        <option value="自主登輪">自主登輪（輔具隨乘客進入客艙）</option>
-        <option value="人車分離">人車分離（輔具另行放置於甲板）</option>
-      </select>
-    </div>
-    <div class="form-group">
-      <label>輪椅類型</label>
-      <select id="regType">
-        <option value="手動輪椅">手動輪椅</option>
-        <option value="電動輪椅">電動輪椅</option>
-        <option value="電動代步車">電動代步車</option>
-        <option value="動力牽引車頭">動力牽引車頭</option>
-      </select>
-    </div>
-    <div class="form-group">
-      <label>台數</label>
-      <div class="count-input-row">
-        <button class="count-stepper" onclick="adjustCount(-1)">−</button>
-        <input type="number" id="regCount" value="1" min="1" max="14">
-        <button class="count-stepper" onclick="adjustCount(1)">＋</button>
+      <label>登記台數</label>
+      <div style="display:flex;gap:10px;">
+        <div style="flex:1;background:#f0fdf4;border:1.5px solid #86efac;border-radius:8px;padding:10px 10px;">
+          <div style="font-size:12px;font-weight:700;color:#15803d;margin-bottom:3px;">🟢 自主登輪</div>
+          <div style="font-size:11px;color:#6b7280;margin-bottom:8px;">輔具隨乘客進入客艙</div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <button class="count-stepper" onclick="adjustCount('self',-1)" style="flex-shrink:0;">−</button>
+            <input type="number" id="regCountSelf" value="0" min="0" max="6"
+              style="flex:1;min-width:0;text-align:center;font-size:16px;font-weight:700;border:1.5px solid #86efac;border-radius:6px;padding:4px 0;outline:none;background:#fff;">
+            <button class="count-stepper" onclick="adjustCount('self',1)" style="flex-shrink:0;">＋</button>
+          </div>
+          <div style="font-size:11px;color:#6b7280;margin-top:5px;" id="remainHintSelf"></div>
+          <select id="regTypeSelf" style="width:100%;margin-top:8px;font-size:12px;padding:5px 6px;border:1.5px solid #86efac;border-radius:6px;background:#fff;outline:none;">
+            <option value="手動輪椅">手動輪椅</option>
+            <option value="電動輪椅">電動輪椅</option>
+            <option value="電動代步車">電動代步車</option>
+            <option value="動力牽引車頭">動力牽引車頭</option>
+          </select>
+        </div>
+        <div style="flex:1;background:#fefce8;border:1.5px solid #fde047;border-radius:8px;padding:10px 10px;">
+          <div style="font-size:12px;font-weight:700;color:#a16207;margin-bottom:3px;">🟡 人車分離</div>
+          <div style="font-size:11px;color:#6b7280;margin-bottom:8px;">輔具另行放置於甲板</div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <button class="count-stepper" onclick="adjustCount('sep',-1)" style="flex-shrink:0;">−</button>
+            <input type="number" id="regCountSep" value="0" min="0" max="4"
+              style="flex:1;min-width:0;text-align:center;font-size:16px;font-weight:700;border:1.5px solid #fde047;border-radius:6px;padding:4px 0;outline:none;background:#fff;">
+            <button class="count-stepper" onclick="adjustCount('sep',1)" style="flex-shrink:0;">＋</button>
+          </div>
+          <div style="font-size:11px;color:#6b7280;margin-top:5px;" id="remainHintSep"></div>
+          <select id="regTypeSep" style="width:100%;margin-top:8px;font-size:12px;padding:5px 6px;border:1.5px solid #fde047;border-radius:6px;background:#fff;outline:none;">
+            <option value="手動輪椅">手動輪椅</option>
+            <option value="電動輪椅">電動輪椅</option>
+            <option value="電動代步車">電動代步車</option>
+            <option value="動力牽引車頭">動力牽引車頭</option>
+          </select>
+        </div>
       </div>
-      <div class="hint" id="remainHint"></div>
+    </div>
+    <div class="form-group" id="roundTripGroup">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600;">
+        <input type="checkbox" id="regRoundTrip" onchange="toggleRoundTrip()" style="width:16px;height:16px;accent-color:var(--primary);">
+        <span id="roundTripLabel">🔄 同時登記回程（同一組旅客來回，台數與類型相同）</span>
+      </label>
+      <select id="regReturnVoyage" onchange="updateReturnHint()" style="display:none;width:100%;margin-top:8px;padding:9px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;"></select>
+      <div id="returnHint" style="display:none;font-size:12px;color:#6b7280;margin-top:5px;"></div>
     </div>
     <div class="form-group">
       <label>旅客/聯絡人姓名（可填訂位代碼）</label>
@@ -503,6 +707,23 @@
         <option value="否">否</option>
         <option value="部分有">部分有</option>
       </select>
+    </div>
+    <div class="form-group">
+      <label>有幾位輪椅旅客需要借用（船上目前僅 1 台輪椅）</label>
+      <select id="regSimpleWc" onchange="updateSimpleWcHint()">
+        <option value="0">0 台</option>
+        <option value="1">1 台</option>
+        <option value="2">2 台</option>
+        <option value="3">3 台</option>
+        <option value="4">4 台</option>
+        <option value="5">5 台</option>
+        <option value="6">6 台</option>
+        <option value="7">7 台</option>
+        <option value="8">8 台</option>
+        <option value="9">9 台</option>
+        <option value="10">10 台</option>
+      </select>
+      <div id="simpleWcHint" style="display:none;margin-top:6px;padding:6px 10px;background:#fef2f2;border:1px solid #fecaca;border-radius:6px;color:#b91c1c;font-size:12px;">⚠️ 已超過船上可借數量（僅 1 台），請另行協調借用</div>
     </div>
     <div class="form-group">
       <label>備註</label>
@@ -521,23 +742,21 @@
           <input type="checkbox" id="modal_cl_n2" style="width:16px;height:16px;accent-color:var(--primary);">
           已通知旅服所，並請志工協助指引
         </label>
-        <label style="display:flex; align-items:flex-start; gap:8px; font-size:13px; cursor:pointer;">
-          <input type="checkbox" id="modal_cl_n3" style="width:16px;height:16px;accent-color:var(--primary);margin-top:2px;flex-shrink:0;">
-          <span>已與海巡協調告知通關時間
-            <input type="number" id="modal_cl_hh" placeholder="時" min="0" max="23"
-              style="border:1px solid var(--border);border-radius:5px;padding:2px 6px;font-size:13px;width:52px;text-align:center;margin-left:4px;"
-              onclick="event.stopPropagation()"
-              oninput="if(this.value.length>=2) document.getElementById('modal_cl_mm').focus()">
-            <span style="font-weight:700; margin:0 2px;">:</span>
-            <input type="number" id="modal_cl_mm" placeholder="分" min="0" max="59"
-              style="border:1px solid var(--border);border-radius:5px;padding:2px 6px;font-size:13px;width:52px;text-align:center;margin-right:4px;"
-              onclick="event.stopPropagation()">
-            ，並請他們配合查驗時間
-          </span>
+        <label style="display:flex; align-items:center; gap:8px; font-size:13px; cursor:pointer;">
+          <input type="checkbox" id="modal_cl_n3" style="width:16px;height:16px;accent-color:var(--primary);">
+          已與海巡協調告知通關時間，並請他們配合查驗時間
         </label>
         <label style="display:flex; align-items:center; gap:8px; font-size:13px; cursor:pointer;">
           <input type="checkbox" id="modal_cl_n4" style="width:16px;height:16px;accent-color:var(--primary);">
           已與負責人告知提早通關時間，登/離船採先上後下為主
+        </label>
+        <label style="display:flex; align-items:center; gap:8px; font-size:13px; cursor:pointer;">
+          <input type="checkbox" id="modal_cl_n5" style="width:16px;height:16px;accent-color:var(--primary);">
+          已通知客貨運群組（含碼頭值班人員）
+        </label>
+        <label style="display:flex; align-items:center; gap:8px; font-size:13px; cursor:pointer;">
+          <input type="checkbox" id="modal_cl_n6" style="width:16px;height:16px;accent-color:var(--primary);">
+          已填寫搭乘聲明書
         </label>
       </div>
     </div>
@@ -672,8 +891,53 @@ const SCHEDULE = buildSchedule();
 // ★ 將 Apps Script 部署後的網址貼在這裡 ★
 const API_URL = localStorage.getItem('phApiUrl') || 'https://script.google.com/macros/s/AKfycbyVr-QDk-8mF_bOrGhX3s9nE1K7J12uLNne2D8KEK6TZrqZc8OXx3zLvfNaR7Tl04HC7Q/exec';
 
-let registrations = JSON.parse(localStorage.getItem('phRegs') || '[]');
+// 安全解析 localStorage 快取：內容損壞時清掉並回退預設值，避免整頁初始化失敗
+function safeParse(key, fallback) {
+  try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; }
+  catch(e) { try { localStorage.removeItem(key); } catch(_){} return fallback; }
+}
+let registrations = safeParse('phRegs', []);
 let syncStatus = 'local'; // 'local' | 'syncing' | 'ok' | 'error'
+
+// 將 registrations 存回 localStorage，但「只保留近幾個月」避免長期累積撐爆瀏覽器上限（5MB）。
+// 記憶體中的 registrations 仍是完整的（由 fetchRegs 從伺服器載入）；這裡只精簡「本機持久層」。
+const REG_KEEP_MONTHS = 4; // 保留當月 + 前 3 個月
+function persistRegs() {
+  try {
+    const d = new Date();
+    let yy = d.getFullYear(), mm = d.getMonth() + 1 - (REG_KEEP_MONTHS - 1);
+    while (mm <= 0) { mm += 12; yy -= 1; }
+    const cutoffYM = yy + '-' + String(mm).padStart(2, '0'); // 例 2026-03
+    const recent = registrations.filter(r => {
+      const v = SCHEDULE.find(x => x.id === r.voyageId);
+      return !v || v.date.slice(0, 7) >= cutoffYM; // 找不到航次的也保留（保險）
+    });
+    localStorage.setItem('phRegs', JSON.stringify(recent));
+  } catch (e) {
+    // 萬一仍超量：退而只存當月；再不行就清掉本機快取（記憶體與伺服器資料不受影響）
+    try {
+      const ym = new Date().toISOString().slice(0, 7);
+      const cur = registrations.filter(r => { const v = SCHEDULE.find(x => x.id === r.voyageId); return v && v.date.slice(0, 7) === ym; });
+      localStorage.setItem('phRegs', JSON.stringify(cur));
+    } catch (_) { try { localStorage.removeItem('phRegs'); } catch (__) {} }
+  }
+}
+
+// ── 待同步保護 ──
+// Google Apps Script 寫入後立刻讀，常讀到還沒更新的舊快照（read-after-write 延遲）。
+// 為避免背景抓取把剛改好的畫面「閃回舊值」，剛在本機改/刪的記錄在寬限期內以本機為準。
+let pendingWrites = {};   // id -> 失效時間戳（在此之前，本機這筆為準）
+let pendingDeletes = {};  // id -> 失效時間戳（在此之前，這筆不該出現）
+const PENDING_GRACE_MS = 12000;
+function markPendingWrite(id){ if (id) pendingWrites[String(id)] = Date.now() + PENDING_GRACE_MS; }
+function markPendingDelete(id){ if (id){ pendingDeletes[String(id)] = Date.now() + PENDING_GRACE_MS; delete pendingWrites[String(id)]; } }
+function clearPending(id){ if (id){ delete pendingWrites[String(id)]; delete pendingDeletes[String(id)]; } }
+
+// ── 航次層級通關時間（整個航次共用）──
+let voyageMeta = safeParse('phVoyageMeta', {}); // voyageId -> {voyageId, clTime, updatedBy, updatedAt}
+let pendingVoyage = {}; // voyageId -> 失效時間戳（剛設定的航次，寬限期內以本機為準）
+function markPendingVoyage(id){ if (id) pendingVoyage[String(id)] = Date.now() + PENDING_GRACE_MS; }
+function clearPendingVoyage(id){ if (id) delete pendingVoyage[String(id)]; }
 
 function setSyncStatus(s, msg) {
   syncStatus = s;
@@ -690,16 +954,73 @@ function setSyncStatus(s, msg) {
   el.className = 'sync-badge ' + info.cls;
 }
 
+// 登入過期：清掉本機登入狀態、回到登入畫面（重入旗標避免並發請求重複跳窗）
+let isHandlingAuth = false;
+function handleAuthExpired() {
+  if (isHandlingAuth) return;
+  isHandlingAuth = true;
+  clearSession();
+  alert('登入已過期，請重新登入');
+  if (typeof showLogin === 'function') showLogin();
+}
+
+// 帶通行證送出寫入請求；失敗一律丟例外（AUTH / HTTP 錯誤 / 伺服器應用層失敗）
+async function apiPost(payload) {
+  const res = await fetch(API_URL, {
+    method: 'POST',
+    body: JSON.stringify({ ...payload, token: getToken() }),
+  });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  let data;
+  try { data = await res.json(); } catch(e) { throw new Error('回應格式錯誤'); }
+  if (data && data.code === 'AUTH') { handleAuthExpired(); throw new Error('AUTH'); }
+  if (!data || data.ok !== true) { throw new Error((data && (data.msg || data.error)) || '操作失敗'); }
+  return data;
+}
+
 async function fetchRegs() {
   if (!API_URL) return;
+  if (!getToken()) return;            // 未登入不抓資料
   setSyncStatus('syncing');
   try {
-    const res = await fetch(API_URL, { cache: 'no-store' });
+    const res = await fetch(API_URL + '?token=' + encodeURIComponent(getToken()), { cache: 'no-store' });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
+    if (data && data.code === 'AUTH') { handleAuthExpired(); return; }
     if (Array.isArray(data)) {
-      registrations = data;
-      localStorage.setItem('phRegs', JSON.stringify(registrations));
+      // 合併：伺服器資料為主，但若伺服器缺少 selfCount/sepCount，
+      // 用本機快取補回（避免舊版 Apps Script 覆蓋掉新格式）
+      const localMap = {};
+      registrations.forEach(r => { localMap[r.id] = r; });
+      const now = Date.now();
+      registrations = data.map(r => {
+        const local = localMap[r.id];
+        // 這筆剛在本機改過、仍在寬限期內 → 以本機版本為準（防止讀到舊快照把畫面閃回舊值）
+        if (pendingWrites[String(r.id)] && pendingWrites[String(r.id)] > now && local) {
+          return { ...local };
+        }
+        let merged = { ...r };
+        // 伺服器缺 selfCount/sepCount 時，從本機補回
+        if (!r.selfCount && !r.sepCount && local &&
+            (local.selfCount || local.sepCount)) {
+          merged.selfCount = local.selfCount || 0;
+          merged.sepCount  = local.sepCount  || 0;
+        }
+        // 伺服器缺 serial 時，從本機補回
+        if (!r.serial && local?.serial) {
+          merged.serial = local.serial;
+        }
+        return merged;
+      });
+      // 剛在本機刪除、仍在寬限期內的，從伺服器結果移除（不要被舊快照救回來）
+      registrations = registrations.filter(r => !(pendingDeletes[String(r.id)] && pendingDeletes[String(r.id)] > now));
+      // 剛在本機新增、但伺服器這次還沒回來的，補回本機版本（避免新登記短暫消失）
+      Object.keys(pendingWrites).forEach(id => {
+        if (pendingWrites[id] > now && localMap[id] && !registrations.some(r => String(r.id) === id)) {
+          registrations.push({ ...localMap[id] });
+        }
+      });
+      persistRegs();
       setSyncStatus('ok');
       renderVoyages();
     }
@@ -708,79 +1029,191 @@ async function fetchRegs() {
   }
 }
 
-async function addRegRemote(reg) {
-  if (!API_URL) { registrations.push(reg); localStorage.setItem('phRegs', JSON.stringify(registrations)); return; }
+// 抓所有航次的通關時間，存入 voyageMeta；剛設定的航次在寬限期內以本機為準
+async function fetchVoyageMeta() {
+  if (!API_URL || !getToken()) return;
+  try {
+    const data = await apiPost({ action: 'getVoyageMeta' });
+    const now = Date.now();
+    const map = {};
+    (data.voyages || []).forEach(v => { map[v.voyageId] = v; });
+    // 保護剛設定的航次（避免讀到舊快照把畫面閃回）
+    Object.keys(voyageMeta).forEach(id => {
+      if (pendingVoyage[id] && pendingVoyage[id] > now) map[id] = voyageMeta[id];
+    });
+    voyageMeta = map;
+    localStorage.setItem('phVoyageMeta', JSON.stringify(voyageMeta));
+    renderVoyages();
+  } catch(e) {
+    if (e.message === 'AUTH') return;   // 已導回登入
+    // 讀取失敗就保留現有快取，不影響其他功能
+  }
+}
+
+// 卡片上直接以「時/分」兩個輸入框設定航次通關時間（按 ✓ 儲存）
+function saveVoyageTimeInline(btn, voyageId) {
+  if (!canWrite()) return;   // 唯讀帳號不可設定
+  const row = btn.closest('.clearance-row');
+  if (!row) return;
+  let hh = row.querySelector('.voy-cl-hh').value.trim();
+  let mm = row.querySelector('.voy-cl-mm').value.trim();
+  let clTime;
+  if (hh === '' && mm === '') {
+    const cur = (voyageMeta[voyageId] && voyageMeta[voyageId].clTime) || '';
+    if (cur !== '' && !confirm('確定要清除此航次的通關時間嗎？')) return;  // 避免誤清
+    clTime = '';
+  } else {
+    if (hh === '') { alert('請填「時」'); return; }
+    if (mm === '') mm = '0';
+    const H = parseInt(hh, 10), M = parseInt(mm, 10);
+    if (isNaN(H) || H < 0 || H > 23 || isNaN(M) || M < 0 || M > 59) { alert('時間範圍不正確（時 0–23、分 0–59）'); return; }
+    clTime = String(H).padStart(2, '0') + ':' + String(M).padStart(2, '0');
+  }
+  saveVoyageTime(voyageId, clTime);
+}
+
+// 樂觀儲存航次通關時間（共用）；失敗則還原並提示
+async function saveVoyageTime(voyageId, clTime) {
+  const backup = voyageMeta[voyageId];
+  voyageMeta[voyageId] = { voyageId, clTime, updatedBy: getUserName(), updatedAt: new Date().toISOString() };
+  markPendingVoyage(voyageId);
+  localStorage.setItem('phVoyageMeta', JSON.stringify(voyageMeta));
+  renderVoyages();
   setSyncStatus('syncing');
   try {
-    await fetch(API_URL, {
-      method: 'POST',
-      body: JSON.stringify({ action: 'add', ...reg }),
-    });
-    await fetchRegs();
+    await apiPost({ action: 'setVoyageTime', voyageId, clTime });
+    fetchVoyageMeta(); // 背景確認，不 await
   } catch(e) {
-    // fallback: 先存本機
-    registrations.push(reg);
-    localStorage.setItem('phRegs', JSON.stringify(registrations));
-    setSyncStatus('error', '已暫存本機');
+    if (e.message === 'AUTH') return;
+    clearPendingVoyage(voyageId);
+    if (backup) voyageMeta[voyageId] = backup; else delete voyageMeta[voyageId];
+    localStorage.setItem('phVoyageMeta', JSON.stringify(voyageMeta));
     renderVoyages();
+    setSyncStatus('error', '設定失敗');
+    alert('設定通關時間失敗：' + e.message);
+  }
+}
+
+async function addRegRemote(reg) {
+  if (!API_URL) { alert('系統未設定後端，無法儲存'); return; }
+  // 樂觀更新：先存入本機並立即重繪，不等伺服器
+  registrations.push(reg);
+  markPendingWrite(reg.id);
+  persistRegs();
+  renderVoyages();
+  setSyncStatus('syncing');
+  try {
+    await apiPost({ action: 'add', ...reg });
+    fetchRegs(); // 背景確認，不 await（不阻塞 UI）
+  } catch(e) {
+    if (e.message === 'AUTH') return;
+    // 伺服器拒絕（容量已滿/網路錯誤等）：撤回樂觀更新
+    clearPending(reg.id);
+    registrations = registrations.filter(r => r.id !== reg.id);
+    persistRegs();
+    renderVoyages();
+    setSyncStatus('error', '登記失敗');
+    alert('登記失敗：' + e.message);
+    await fetchRegs();   // 拉回伺服器真實狀態，避免本機與雲端不一致
   }
 }
 
 async function deleteRegRemote(regId) {
-  if (!API_URL) {
-    registrations = registrations.filter(r => r.id !== regId);
-    localStorage.setItem('phRegs', JSON.stringify(registrations));
-    renderVoyages();
-    return;
-  }
+  if (!API_URL) { alert('系統未設定後端，無法刪除'); return; }
+  // 樂觀更新：先從本機移除並立即重繪
+  const backup = registrations.find(r => r.id === regId);
+  registrations = registrations.filter(r => r.id !== regId);
+  markPendingDelete(regId);
+  persistRegs();
+  renderVoyages();
   setSyncStatus('syncing');
   try {
-    await fetch(API_URL, {
-      method: 'POST',
-      body: JSON.stringify({ action: 'delete', id: regId }),
-    });
-    await fetchRegs();
+    await apiPost({ action: 'delete', id: regId });
+    fetchRegs(); // 背景確認，不 await
   } catch(e) {
-    registrations = registrations.filter(r => r.id !== regId);
-    localStorage.setItem('phRegs', JSON.stringify(registrations));
-    setSyncStatus('error', '已暫存本機');
-    renderVoyages();
+    if (e.message === 'AUTH') return;
+    // 伺服器拒絕：撤回樂觀更新
+    clearPending(regId);
+    if (backup) { registrations.push(backup); persistRegs(); renderVoyages(); }
+    setSyncStatus('error', '刪除失敗');
+    alert('刪除失敗：' + e.message);
+    await fetchRegs();   // 拉回伺服器真實狀態，避免本機與雲端不一致
   }
-}
-
-const STAFF = {
-  ksn: ['王政智','胡珍瑛','林幸茹','陳世翃','鄭乃齊','朱韋菁','顏莛叡'],
-  pkh: ['王萍芳','黃靜雯','陳和馨'],
-};
-
-function updateStaffList() {
-  const office = document.getElementById('regOffice').value;
-  const sel = document.getElementById('regStaff');
-  sel.innerHTML = STAFF[office].map(n => `<option value="${n}">${n}</option>`).join('');
 }
 
 const MAX_TOTAL    = 10; // 每航次總上限
 const MAX_SELF     = 6;  // 自主登輪上限
 const MAX_SEPARATE = 4;  // 人車分離上限
+// 是否強制台數上限。false=不擋（仍顯示台數供參考）。要恢復限制改回 true（後端也要同步改 ENFORCE_CAP 並重新部署）
+const ENFORCE_CAP  = false;
 
 function getVoyageRegs(voyageId) {
   return registrations.filter(r => r.voyageId === voyageId);
 }
 
+// 新舊格式相容輔助函式
+function regSelfCount(r) {
+  if (r.selfCount !== undefined) return Number(r.selfCount) || 0;
+  return r.boardingType !== '人車分離' ? Number(r.count) || 0 : 0;
+}
+function regSepCount(r) {
+  if (r.sepCount !== undefined) return Number(r.sepCount) || 0;
+  return r.boardingType === '人車分離' ? Number(r.count) || 0 : 0;
+}
+function regTotalCount(r) { return regSelfCount(r) + regSepCount(r); }
+// 各登輪方式的輪椅類型
+// 新格式：typeSelf/typeSep。舊格式：單一 type 只套用到「實際有台數」的那一組，
+// 另一組回傳空字串（避免把不存在的組也標上類型，編輯時造成無聲竄改）
+function regSelfType(r) {
+  if (r.typeSelf) return r.typeSelf;
+  if (r.boardingType === '人車分離') return '';   // 舊資料：自主組不存在
+  return r.type || '';
+}
+function regSepType(r) {
+  if (r.typeSep) return r.typeSep;
+  if (r.boardingType && r.boardingType !== '人車分離') return ''; // 舊資料：人車分離組不存在
+  return r.type || '';
+}
+function regTypeLabel(r) {
+  const sc = regSelfCount(r), pc = regSepCount(r);
+  const parts = [];
+  if (sc > 0) parts.push(`自主 ${sc} 台·${regSelfType(r) || '其他'}`);
+  if (pc > 0) parts.push(`人車分 ${pc} 台·${regSepType(r) || '其他'}`);
+  return parts.join('　') || '—';
+}
+// 只顯示台數（匯出「登記類型」欄用）
+function regCountLabel(r) {
+  const sc = regSelfCount(r), pc = regSepCount(r);
+  const parts = [];
+  if (sc > 0) parts.push(`自主 ${sc} 台`);
+  if (pc > 0) parts.push(`人車分離 ${pc} 台`);
+  return parts.join('　') || '—';
+}
+// 只顯示輪椅類型（匯出「輪椅類型」欄用）
+function regTypeOnlyLabel(r) {
+  const sc = regSelfCount(r), pc = regSepCount(r);
+  const parts = [];
+  if (sc > 0) parts.push(`自主:${regSelfType(r) || '其他'}`);
+  if (pc > 0) parts.push(`人車分:${regSepType(r) || '其他'}`);
+  return parts.join('　') || '—';
+}
+// 一筆登記依輪椅類型拆分台數 → { 類型: 台數 }
+function regTypeBreakdown(r) {
+  const out = {};
+  const sc = regSelfCount(r), pc = regSepCount(r);
+  if (sc > 0) { const t = regSelfType(r) || '其他'; out[t] = (out[t]||0) + sc; }
+  if (pc > 0) { const t = regSepType(r)  || '其他'; out[t] = (out[t]||0) + pc; }
+  return out;
+}
+
 function getVoyageCount(voyageId) {
-  return getVoyageRegs(voyageId).reduce((s, r) => s + Number(r.count), 0);
+  return getVoyageRegs(voyageId).reduce((s, r) => s + regTotalCount(r), 0);
 }
-
 function getVoyageSelfCount(voyageId) {
-  return getVoyageRegs(voyageId)
-    .filter(r => r.boardingType !== '人車分離')
-    .reduce((s, r) => s + Number(r.count), 0);
+  return getVoyageRegs(voyageId).reduce((s, r) => s + regSelfCount(r), 0);
 }
-
 function getVoyageSeparateCount(voyageId) {
-  return getVoyageRegs(voyageId)
-    .filter(r => r.boardingType === '人車分離')
-    .reduce((s, r) => s + Number(r.count), 0);
+  return getVoyageRegs(voyageId).reduce((s, r) => s + regSepCount(r), 0);
 }
 
 function getStatus(total) {
@@ -806,10 +1239,18 @@ function routeLabel(r) {
 }
 
 function renderVoyages() {
+  rebuildTripIndex();   // 重建去回程配對索引，供 pairedTripInfo 快速查表
   const dateFilter = document.getElementById('dateFilter').value;
-  const filtered = dateFilter
-    ? SCHEDULE.filter(v => v.date === dateFilter)
-    : SCHEDULE;
+  const originEl = document.getElementById('originFilter');
+  const originFilter = originEl ? originEl.value : 'all';
+
+  let filtered = SCHEDULE;
+  if (dateFilter) filtered = filtered.filter(v => v.date === dateFilter);
+  if (originFilter && originFilter !== 'all') {
+    // 高雄出發 = KSN→PKH；馬公出發 = PKH→KSN
+    const wantRoute = originFilter === 'ksn' ? 'KSN→PKH' : 'PKH→KSN';
+    filtered = filtered.filter(v => v.route === wantRoute);
+  }
 
   const grid = document.getElementById('voyageGrid');
   const noVoyages = document.getElementById('noVoyages');
@@ -846,6 +1287,24 @@ function buildCard(v) {
     ? `<div class="companion-notice warn">⚠️ 自主登輪已滿額，人車分離且<strong>無法自行撤離者須有陪伴者隨行</strong></div>`
     : `<div class="companion-notice ok">✅ 自主登輪尚有名額（${selfCount}/${MAX_SELF} 台）</div>`;
 
+  // 整個航次共用的通關時間（大家確認好登船/通關時間後，在此統一整理）
+  const vClTime = (voyageMeta[v.id] && voyageMeta[v.id].clTime) ? voyageMeta[v.id].clTime : '';
+  const clBy = (voyageMeta[v.id] && voyageMeta[v.id].updatedBy) ? voyageMeta[v.id].updatedBy : '';
+  const clHH = vClTime ? vClTime.split(':')[0] : '';
+  const clMM = vClTime ? vClTime.split(':')[1] : '';
+  const clInputStyle = 'border:1px solid var(--border);border-radius:5px;padding:2px 6px;font-size:13px;width:48px;text-align:center;';
+  const clearanceHTML = `<div class="clearance-row${vClTime ? ' set' : ''}">
+    🛂 <span style="font-weight:600;">航次通關時間：</span>${canWrite()
+      ? `<input type="number" class="voy-cl-hh" value="${clHH}" min="0" max="23" placeholder="時" style="${clInputStyle}" oninput="if(this.value.length>=2)this.closest('.clearance-row').querySelector('.voy-cl-mm').focus()">
+         <span style="font-weight:700;margin:0 2px;">:</span>
+         <input type="number" class="voy-cl-mm" value="${clMM}" min="0" max="59" placeholder="分" style="${clInputStyle}">
+         <button onclick="saveVoyageTimeInline(this,'${v.id}')" style="margin-left:6px;padding:3px 10px;font-size:12px;background:var(--primary);color:#fff;border:none;border-radius:5px;cursor:pointer;">✓ 儲存</button>
+         ${clBy ? `<span style="margin-left:auto;color:#9ca3af;font-size:11px;">（${esc(clBy)}）</span>` : ''}`
+      : (vClTime
+          ? `<strong style="color:#1e40af;font-size:15px;">${vClTime}</strong>${clBy ? `<span style="color:#9ca3af;font-size:11px;margin-left:4px;">（${esc(clBy)}）</span>` : ''}`
+          : `<span style="color:#9ca3af;">尚未設定</span>`)}
+  </div>`;
+
   const regItems = regs.length === 0
     ? `<div class="reg-empty">尚無登記紀錄</div>`
     : regs.map(r => `
@@ -854,13 +1313,15 @@ function buildCard(v) {
         <span class="reg-main">
           <strong>${r.name || '（未填姓名）'}</strong>
           <span style="color:var(--text-muted); font-size:12px;">
-            ${r.serial ? `<span style="color:var(--primary);font-weight:700;">${r.serial}</span>　` : ''}${r.boardingType || '自主登輪'}　${r.type} × ${r.count} 台　陪伴:${r.companion}　登記:${r.staff || '—'}
+            ${r.tripGroup ? '<span title="去回程一組" style="color:#7c3aed;">🔄</span> ' : ''}${r.serial ? `<span style="color:var(--primary);font-weight:700;">${r.serial}</span>　` : ''}${regTypeLabel(r)}　陪伴:${r.companion}　登記:${r.staff || '—'}
+            ${Number(r.simpleWc) > 0 ? `　<span style="color:${Number(r.simpleWc) > 1 ? '#b91c1c' : '#0e7490'};font-weight:700;">${Number(r.simpleWc) > 1 ? '⚠️ ' : ''}需借用輪椅×${Number(r.simpleWc)}${Number(r.simpleWc) > 1 ? '（超過船上 1 台）' : ''}</span>` : ''}
             ${r.note ? '　' + r.note : ''}
+            ${(() => { const pt = pairedTripInfo(r); return pt ? `<br><span style="color:#7c3aed;font-size:11px;">🔄 ${pt.kind}：${pt.label}</span>` : ''; })()}
           </span>
         </span>
-        <span class="reg-count">${r.count}</span>
-        <button class="btn-edit" title="編輯此筆" onclick="editReg('${r.id}')">✏️</button>
-        <button class="btn-del" title="刪除此筆" onclick="deleteReg('${r.id}')">×</button>
+        <span class="reg-count">${regTotalCount(r)}</span>
+        ${canWrite() ? `<button class="btn-edit" title="編輯此筆" onclick="editReg('${r.id}')">✏️</button>
+        <button class="btn-del" title="刪除此筆" onclick="deleteReg('${r.id}')">×</button>` : ''}
       </div>
     `).join('');
 
@@ -897,119 +1358,37 @@ function buildCard(v) {
     </div>
     <div class="status-text status-${status}" style="padding-top:10px">${statusText(selfCount, separateCount)}</div>
     ${companionHTML}
+    ${clearanceHTML}
     <div class="reg-list">${regItems}</div>
-    <div class="btn-add-wrap">
-      <button class="btn-add" ${isFull ? 'disabled' : ''} onclick="openModal('${v.id}')">
-        ${isFull ? `此航次已達 ${MAX_TOTAL} 台上限` : '＋ 登記輪椅旅客'}
+    ${canWrite() ? `<div class="btn-add-wrap">
+      <button class="btn-add" ${(ENFORCE_CAP && isFull) ? 'disabled' : ''} onclick="openModal('${v.id}')">
+        ${(ENFORCE_CAP && isFull) ? `此航次已達 ${MAX_TOTAL} 台上限` : '＋ 登記輪椅旅客'}
       </button>
-    </div>
+    </div>` : ''}
   `;
   return card;
 }
 
 // ────────────────────────────────────────────────
-// 通知清單（雲端同步）
+// 通知清單（隨登記記錄儲存）
 // ────────────────────────────────────────────────
-let checklists = {}; // { voyageId: { n1, n2, n3, n4, time } }
-
-async function fetchChecklists() {
-  if (!API_URL) return;
-  try {
-    const res = await fetch(API_URL + '?type=checklist', { cache: 'no-store' });
-    if (!res.ok) return;
-    const data = await res.json();
-    if (Array.isArray(data)) {
-      checklists = {};
-      data.forEach(cl => { checklists[cl.voyageId] = cl; });
-      renderVoyages();
-    }
-  } catch(e) {}
+function readModalChecklist() {
+  // 通關時間(clTime)已移除，改在航次卡片管理（存於 voyageMeta 表，與每筆登記無關）
+  return {
+    n1: document.getElementById('modal_cl_n1').checked,
+    n2: document.getElementById('modal_cl_n2').checked,
+    n3: document.getElementById('modal_cl_n3').checked,
+    n4: document.getElementById('modal_cl_n4').checked,
+    n5: document.getElementById('modal_cl_n5').checked,
+    n6: document.getElementById('modal_cl_n6').checked,
+  };
 }
 
-async function saveChecklistRemote(voyageId) {
-  if (!API_URL) return;
-  const cl = checklists[voyageId] || {};
-  try {
-    await fetch(API_URL, {
-      method: 'POST',
-      body: JSON.stringify({ action: 'updateChecklist', voyageId, ...cl }),
-    });
-  } catch(e) {}
-}
-
-function getChecklist(voyageId) {
-  return checklists[voyageId] || {};
-}
-
-function buildChecklist(voyageId) {
-  const cl = getChecklist(voyageId);
-  const c1 = cl.n1 ? 'checked' : '';
-  const c2 = cl.n2 ? 'checked' : '';
-  const c3 = cl.n3 ? 'checked' : '';
-  const c4 = cl.n4 ? 'checked' : '';
-  const time = cl.time || '';
-  const done = [cl.n1,cl.n2,cl.n3,cl.n4].filter(Boolean).length;
-  return `
-  <div class="checklist-wrap">
-    <button class="checklist-toggle" onclick="toggleChecklist('${voyageId}',this)">
-      📋 通知清單 ${done > 0 ? `<span style="background:#16a34a;color:#fff;border-radius:99px;padding:1px 8px;font-size:11px;">${done}/4</span>` : ''}
-      <span style="margin-left:auto">▼</span>
-    </button>
-    <div class="checklist-body" id="cl_${voyageId}">
-      <div class="checklist-item">
-        <input type="checkbox" id="cl_${voyageId}_1" ${c1} onchange="updateCheck('${voyageId}','n1',this)">
-        <label for="cl_${voyageId}_1" class="${cl.n1?'checked':''}">已通知票務群組告知事務長輪椅數量</label>
-      </div>
-      <div class="checklist-item">
-        <input type="checkbox" id="cl_${voyageId}_2" ${c2} onchange="updateCheck('${voyageId}','n2',this)">
-        <label for="cl_${voyageId}_2" class="${cl.n2?'checked':''}">已通知旅服所，並請志工協助指引</label>
-      </div>
-      <div class="checklist-item">
-        <input type="checkbox" id="cl_${voyageId}_3" ${c3} onchange="updateCheck('${voyageId}','n3',this)">
-        <label for="cl_${voyageId}_3" class="${cl.n3?'checked':''}">已與海巡協調告知通關時間
-          <input class="checklist-time" type="text" placeholder="HH:MM" value="${time}"
-            onclick="event.stopPropagation()"
-            onchange="updateTime('${voyageId}',this.value)">
-          ，並請他們配合查驗時間
-        </label>
-      </div>
-      <div class="checklist-item">
-        <input type="checkbox" id="cl_${voyageId}_4" ${c4} onchange="updateCheck('${voyageId}','n4',this)">
-        <label for="cl_${voyageId}_4" class="${cl.n4?'checked':''}">已與負責人告知提早通關時間，登/離船採先上後下為主</label>
-      </div>
-    </div>
-  </div>`;
-}
-
-function toggleChecklist(voyageId, btn) {
-  const body = document.getElementById('cl_' + voyageId);
-  const isOpen = body.classList.toggle('open');
-  btn.querySelector('span:last-child').textContent = isOpen ? '▲' : '▼';
-}
-
-function updateCheck(voyageId, key, el) {
-  if (!checklists[voyageId]) checklists[voyageId] = {};
-  checklists[voyageId][key] = el.checked;
-  const label = el.nextElementSibling;
-  if (label) label.className = el.checked ? 'checked' : '';
-  const done = ['n1','n2','n3','n4'].filter(k => checklists[voyageId][k]).length;
-  const toggle = el.closest('.checklist-wrap').querySelector('.checklist-toggle');
-  const badge = toggle.querySelector('span.badge') || (() => {
-    const s = document.createElement('span');
-    s.className = 'badge';
-    s.style.cssText = 'background:#16a34a;color:#fff;border-radius:99px;padding:1px 8px;font-size:11px;';
-    toggle.insertBefore(s, toggle.querySelector('span:last-child'));
-    return s;
-  })();
-  badge.textContent = done > 0 ? `${done}/4` : '';
-  badge.style.display = done > 0 ? '' : 'none';
-  saveChecklistRemote(voyageId);
-}
-
-function updateTime(voyageId, val) {
-  if (!checklists[voyageId]) checklists[voyageId] = {};
-  checklists[voyageId].time = val;
-  saveChecklistRemote(voyageId);
+// 需借用輪椅數 > 1 時，下拉下方顯示警示（船上僅 1 台）
+function updateSimpleWcHint() {
+  const n = parseInt(document.getElementById('regSimpleWc').value) || 0;
+  const hint = document.getElementById('simpleWcHint');
+  if (hint) hint.style.display = (n > 1) ? '' : 'none';
 }
 
 function updateStats(filtered) {
@@ -1038,17 +1417,14 @@ let editingRegId = null;
 
 function updateRemainHint() {
   if (!currentVoyageId) return;
-  const boardingType = document.getElementById('regBoardingType').value;
   const selfCount     = getVoyageSelfCount(currentVoyageId);
   const separateCount = getVoyageSeparateCount(currentVoyageId);
-  let remain;
-  if (boardingType === '人車分離') {
-    remain = Math.max(0, MAX_SEPARATE - separateCount);
-  } else {
-    remain = Math.max(0, MAX_SELF - selfCount);
-  }
-  document.getElementById('remainHint').textContent =
-    `${boardingType} 尚可登記 ${remain} 台（自主登輪 ${selfCount}/${MAX_SELF}、人車分離 ${separateCount}/${MAX_SEPARATE}）`;
+  const remSelf = Math.max(0, MAX_SELF - selfCount);
+  const remSep  = Math.max(0, MAX_SEPARATE - separateCount);
+  const hs = document.getElementById('remainHintSelf');
+  const hp = document.getElementById('remainHintSep');
+  if (hs) hs.textContent = `尚可登記 ${remSelf} 台（已用 ${selfCount}/${MAX_SELF}）`;
+  if (hp) hp.textContent = `尚可登記 ${remSep} 台（已用 ${separateCount}/${MAX_SEPARATE}）`;
 }
 
 function genSerial(voyageId) {
@@ -1064,7 +1440,76 @@ function genSerial(voyageId) {
   return `${dir}-${rocYr}${mo}${dy}-${hh}${mm}${ss}`;
 }
 
+// 去回程配對索引：tripGroup -> [該組的登記]。renderVoyages 開頭重建一次，
+// 讓 pairedTripInfo 從 O(N) 全表搜尋降為 O(1) 查表（避免資料量大時每筆卡片都掃全表）。
+let _tripIndex = {};
+function rebuildTripIndex() {
+  _tripIndex = {};
+  registrations.forEach(r => { if (r.tripGroup) { (_tripIndex[r.tripGroup] = _tripIndex[r.tripGroup] || []).push(r); } });
+}
+
+// 找去回程綁定的另一趟，回傳 { voyage, label, kind } 或 null
+// kind：較晚出發的那趟=「回程航班」，較早的=「去程航班」
+function pairedTripInfo(r) {
+  if (!r || !r.tripGroup) return null;
+  const group = _tripIndex[r.tripGroup];
+  const paired = group ? group.find(x => x.id !== r.id) : registrations.find(x => x.tripGroup === r.tripGroup && x.id !== r.id);
+  if (!paired) return null;
+  const pv = SCHEDULE.find(x => x.id === paired.voyageId);
+  if (!pv) return null;
+  const rv = SCHEDULE.find(x => x.id === r.voyageId);
+  let kind = '回程航班';
+  if (rv) kind = ((pv.date + pv.departTime) >= (rv.date + rv.departTime)) ? '回程航班' : '去程航班';
+  return { voyage: pv, label: `${pv.date} ${pv.departTime}　${routeLabel(pv.route)}`, kind };
+}
+
+// 有設定單位(高雄/馬公)的人 → 鎖死登記單位；管理者/不限 → 可選
+function applyOfficeLock() {
+  const off = getUserOffice();
+  document.getElementById('regOffice').disabled = (off === 'ksn' || off === 'pkh');
+}
+
+// 檢查某航次再加 addSelf/addSep 台是否超過上限
+function canFit(voyageId, addSelf, addSep) {
+  if (!ENFORCE_CAP) return true;   // 未啟用上限：一律放行（不擋登記）
+  const curSelf = getVoyageSelfCount(voyageId);
+  const curSep  = getVoyageSeparateCount(voyageId);
+  return (curSelf + addSelf <= MAX_SELF)
+      && (curSep + addSep <= MAX_SEPARATE)
+      && (curSelf + curSep + addSelf + addSep <= MAX_TOTAL);
+}
+
+// 填入回程航次下拉（反向航線、日期 >= 去程）
+function populateReturnVoyages(outboundId) {
+  const out = SCHEDULE.find(x => x.id === outboundId);
+  const sel = document.getElementById('regReturnVoyage');
+  if (!out) { sel.innerHTML = ''; return; }
+  const wantRoute = out.route === 'KSN→PKH' ? 'PKH→KSN' : 'KSN→PKH';
+  const cands = SCHEDULE
+    .filter(v => v.route === wantRoute && v.date >= out.date && v.id !== outboundId)
+    .sort((a, b) => (a.date + a.departTime).localeCompare(b.date + b.departTime))
+    .slice(0, 60);
+  sel.innerHTML = cands.length
+    ? cands.map(v => `<option value="${v.id}">${v.date} ${v.departTime}　${routeLabel(v.route)}</option>`).join('')
+    : '<option value="">（找不到回程航班）</option>';
+}
+
+function toggleRoundTrip() {
+  const on = document.getElementById('regRoundTrip').checked;
+  document.getElementById('regReturnVoyage').style.display = on ? '' : 'none';
+  document.getElementById('returnHint').style.display = on ? '' : 'none';
+  if (on) updateReturnHint();
+}
+
+function updateReturnHint() {
+  const v = SCHEDULE.find(x => x.id === document.getElementById('regReturnVoyage').value);
+  const hint = document.getElementById('returnHint');
+  if (!v) { hint.textContent = ''; return; }
+  hint.textContent = `回程目前：自主 ${getVoyageSelfCount(v.id)}/${MAX_SELF}、人車分離 ${getVoyageSeparateCount(v.id)}/${MAX_SEPARATE}`;
+}
+
 function openModal(voyageId) {
+  if (!canWrite()) return;   // 唯讀帳號不可新增
   currentVoyageId = voyageId;
   const v = SCHEDULE.find(x => x.id === voyageId);
   const selfCount     = getVoyageSelfCount(voyageId);
@@ -1074,45 +1519,41 @@ function openModal(voyageId) {
   document.getElementById('modalVoyageInfo').textContent =
     `${v.date} ${v.departTime}　${routeLabel(v.route)}　合計 ${total}/${MAX_TOTAL} 台（自主 ${selfCount}/${MAX_SELF}、人車分離 ${separateCount}/${MAX_SEPARATE}）`;
 
-  // 如果自主登輪已滿，預設選人車分離
-  if (selfCount >= MAX_SELF) {
-    document.getElementById('regBoardingType').value = '人車分離';
-  } else {
-    document.getElementById('regBoardingType').value = '自主登輪';
-  }
-
   document.getElementById('regSerial').textContent = genSerial(voyageId);
-  document.getElementById('regCount').value = 1;
+  document.getElementById('regCountSelf').value = 0;
+  document.getElementById('regCountSep').value = 0;
+  document.getElementById('regTypeSelf').value = '手動輪椅';
+  document.getElementById('regTypeSep').value = '手動輪椅';
   document.getElementById('regName').value = '';
   document.getElementById('regNote').value = '';
   document.getElementById('regCompanion').value = '否';
-  updateStaffList();
-  loadModalChecklist(voyageId);
+  document.getElementById('regSimpleWc').value = '0';
+  updateSimpleWcHint();
+  document.getElementById('regOffice').value = getUserOffice() || 'ksn';  // 自動帶入登入者單位
+  applyOfficeLock();
+  document.getElementById('regStaffDisplay').textContent = '👤 ' + (getUserName() || '—'); // 登記人員＝登入者
+  document.getElementById('roundTripInfo').style.display = 'none';
+  // 回程選項：預設不勾、填入候選回程航次
+  document.getElementById('roundTripGroup').style.display = '';
+  document.getElementById('roundTripLabel').textContent = '🔄 同時登記回程（同一組旅客來回，台數與類型相同）';
+  document.getElementById('regRoundTrip').checked = false;
+  document.getElementById('regReturnVoyage').style.display = 'none';
+  document.getElementById('returnHint').style.display = 'none';
+  populateReturnVoyages(voyageId);
+  ['modal_cl_n1','modal_cl_n2','modal_cl_n3','modal_cl_n4','modal_cl_n5','modal_cl_n6'].forEach(id => {
+    document.getElementById(id).checked = false;
+  });
   updateRemainHint();
   document.getElementById('modalOverlay').classList.add('open');
 }
 
-function loadModalChecklist(voyageId) {
-  const cl = checklists[voyageId] || {};
-  document.getElementById('modal_cl_n1').checked = !!cl.n1;
-  document.getElementById('modal_cl_n2').checked = !!cl.n2;
-  document.getElementById('modal_cl_n3').checked = !!cl.n3;
-  document.getElementById('modal_cl_n4').checked = !!cl.n4;
-  const timeParts = (cl.time || '').split(':');
-  document.getElementById('modal_cl_hh').value = timeParts[0] || '';
-  document.getElementById('modal_cl_mm').value = timeParts[1] || '';
-}
-
-function saveModalChecklist(voyageId) {
-  if (!checklists[voyageId]) checklists[voyageId] = {};
-  checklists[voyageId].n1   = document.getElementById('modal_cl_n1').checked;
-  checklists[voyageId].n2   = document.getElementById('modal_cl_n2').checked;
-  checklists[voyageId].n3   = document.getElementById('modal_cl_n3').checked;
-  checklists[voyageId].n4   = document.getElementById('modal_cl_n4').checked;
-  const hh = document.getElementById('modal_cl_hh').value.padStart(2,'0');
-  const mm = document.getElementById('modal_cl_mm').value.padStart(2,'0');
-  checklists[voyageId].time = (hh && mm) ? `${hh}:${mm}` : '';
-  saveChecklistRemote(voyageId);
+function loadModalChecklist(r) {
+  document.getElementById('modal_cl_n1').checked = !!r.n1;
+  document.getElementById('modal_cl_n2').checked = !!r.n2;
+  document.getElementById('modal_cl_n3').checked = !!r.n3;
+  document.getElementById('modal_cl_n4').checked = !!r.n4;
+  document.getElementById('modal_cl_n5').checked = !!r.n5;
+  document.getElementById('modal_cl_n6').checked = !!r.n6;
 }
 
 function closeModal() {
@@ -1124,6 +1565,7 @@ function closeModal() {
 }
 
 function editReg(regId) {
+  if (!canWrite()) return;   // 唯讀帳號不可編輯
   const r = registrations.find(x => x.id === regId);
   if (!r) return;
   editingRegId = regId;
@@ -1138,103 +1580,670 @@ function editReg(regId) {
   document.getElementById('modalVoyageInfo').textContent =
     `${v.date} ${v.departTime}　${routeLabel(v.route)}　合計 ${total}/${MAX_TOTAL} 台（自主 ${selfCount}/${MAX_SELF}、人車分離 ${separateCount}/${MAX_SEPARATE}）`;
 
-  document.getElementById('regOffice').value       = r.office;
-  updateStaffList();
-  if (r.staff) document.getElementById('regStaff').value = r.staff;
-  document.getElementById('regBoardingType').value = r.boardingType || '自主登輪';
+  document.getElementById('regOffice').value = r.office;
+  applyOfficeLock();
+  document.getElementById('regStaffDisplay').textContent = '👤 ' + (r.staff || getUserName() || '—'); // 顯示原登記人員
+  document.getElementById('regRoundTrip').checked = false;
+  document.getElementById('regReturnVoyage').style.display = 'none';
+  document.getElementById('returnHint').style.display = 'none';
+  document.getElementById('roundTripLabel').textContent = '🔄 同時登記回程（同一組旅客來回，台數與類型相同）'; // 先重設，避免殘留上次的「補登回程」
+  const rtInfo = document.getElementById('roundTripInfo');
+  const rtGroup = document.getElementById('roundTripGroup');
+  const pt = pairedTripInfo(r);
+  if (pt) {
+    // 已是去回程一組：顯示配對資訊，不再提供補登回程
+    rtGroup.style.display = 'none';
+    rtInfo.innerHTML = `🔄 此為<b>去回程一組</b>，${pt.kind}：${pt.label}<br><span style="font-weight:400;">（修改台數／類型／姓名／通知清單會同步更新另一趟）</span>`;
+    rtInfo.style.display = '';
+  } else {
+    // 單程：可補登回程（旅客臨時說要回程）
+    rtInfo.style.display = 'none';
+    rtGroup.style.display = '';
+    document.getElementById('roundTripLabel').textContent = '🔄 補登回程（為這筆加上回程，綁成一組）';
+    populateReturnVoyages(r.voyageId);
+  }
   document.getElementById('regSerial').textContent = r.serial || '—';
-  document.getElementById('regType').value         = r.type;
-  document.getElementById('regCount').value        = r.count;
-  document.getElementById('regName').value         = r.name || '';
-  document.getElementById('regCompanion').value    = r.companion || '否';
-  document.getElementById('regNote').value         = r.note || '';
+  document.getElementById('regTypeSelf').value = regSelfType(r) || '手動輪椅';
+  document.getElementById('regTypeSep').value  = regSepType(r)  || '手動輪椅';
+  document.getElementById('regCountSelf').value = regSelfCount(r);
+  document.getElementById('regCountSep').value  = regSepCount(r);
+  document.getElementById('regName').value      = r.name || '';
+  document.getElementById('regCompanion').value = r.companion || '否';
+  document.getElementById('regSimpleWc').value  = String(Number(r.simpleWc) || 0);
+  updateSimpleWcHint();
+  document.getElementById('regNote').value      = r.note || '';
   updateRemainHint();
+  loadModalChecklist(r);
   document.getElementById('modalOverlay').classList.add('open');
 }
 
-function adjustCount(delta) {
-  const input = document.getElementById('regCount');
-  const val = Math.max(1, (parseInt(input.value)||1) + delta);
+function adjustCount(type, delta) {
+  const inputId = type === 'sep' ? 'regCountSep' : 'regCountSelf';
+  const input = document.getElementById(inputId);
+  const val = Math.max(0, (parseInt(input.value)||0) + delta);
   input.value = val;
+  updateRemainHint();
 }
 
 async function submitReg() {
   if (!currentVoyageId) return;
-  const count       = parseInt(document.getElementById('regCount').value) || 0;
-  const boardingType = document.getElementById('regBoardingType').value;
-  if (count < 1) { alert('請輸入至少 1 台'); return; }
+  const selfCount = parseInt(document.getElementById('regCountSelf').value) || 0;
+  const sepCount  = parseInt(document.getElementById('regCountSep').value)  || 0;
+  if (selfCount < 1 && sepCount < 1) { alert('請輸入至少 1 台（自主登輪或人車分離）'); return; }
 
-  const reg = {
-    id: Date.now().toString(36) + Math.random().toString(36).slice(2,6),
-    voyageId: currentVoyageId,
-    boardingType,
-    office: document.getElementById('regOffice').value,
-    type: document.getElementById('regType').value,
-    count,
-    name: document.getElementById('regName').value.trim(),
+  const base = {
+    voyageId:  currentVoyageId,
+    office:    document.getElementById('regOffice').value,
+    typeSelf:  document.getElementById('regTypeSelf').value,
+    typeSep:   document.getElementById('regTypeSep').value,
+    name:      document.getElementById('regName').value.trim(),
     companion: document.getElementById('regCompanion').value,
-    staff: document.getElementById('regStaff').value,
-    note: document.getElementById('regNote').value.trim(),
-    serial: editingRegId ? (registrations.find(r=>r.id===editingRegId)?.serial || document.getElementById('regSerial').textContent) : document.getElementById('regSerial').textContent,
-    createdAt: new Date().toISOString()
+    simpleWc:  parseInt(document.getElementById('regSimpleWc').value) || 0,  // 此團需借用簡易輪椅數
+    staff:     getUserName(),   // 登記人員＝目前登入者
+    note:      document.getElementById('regNote').value.trim(),
+    createdAt: new Date().toISOString(),
   };
 
-  // 儲存通知清單
-  saveModalChecklist(currentVoyageId);
+  const cl = readModalChecklist();
+  const genId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 
   if (editingRegId) {
-    // 編輯模式：保留原 ID，更新本機後同步雲端
-    reg.id = editingRegId;
-    reg.createdAt = registrations.find(r => r.id === editingRegId)?.createdAt || reg.createdAt;
-    // 先更新本機
+    // 編輯模式：保留 id，更新台數與通知清單
+    const orig = registrations.find(r => r.id === editingRegId);
+    // 去回程綁定時要同步的「共用欄位」
+    const shared = {
+      selfCount, sepCount,
+      typeSelf: base.typeSelf, typeSep: base.typeSep,
+      name: base.name, companion: base.companion, note: base.note,
+      simpleWc: base.simpleWc,
+      ...cl,
+    };
+    const reg = {
+      ...base,
+      ...shared,
+      id:        editingRegId,
+      serial:    orig?.serial || '',
+      staff:     orig?.staff || getUserName(),   // 編輯保留原登記人員
+      createdAt: orig?.createdAt || base.createdAt,
+      tripGroup: orig?.tripGroup || '',
+    };
+    // ── 補登回程：編輯的是單程（無 tripGroup）且勾了「補登回程」→ 把這筆綁上 tripGroup 並新增一筆回程 ──
+    const addingReturn = !orig?.tripGroup && document.getElementById('regRoundTrip').checked;
+    if (addingReturn) {
+      const returnId = document.getElementById('regReturnVoyage').value;
+      if (!returnId) { alert('請選擇回程航次'); return; }
+      if (!SCHEDULE.find(x => x.id === returnId)) { alert('回程航次無效，請重新選擇'); return; }
+      if (returnId === reg.voyageId) { alert('回程航次不能與原航次相同'); return; }
+      if (!canFit(returnId, selfCount, sepCount)) { alert('回程航次台數會超過上限，無法登記'); return; }
+      const origBackup = { ...orig };   // 撤回時還原成編輯前的原筆
+      const tg = genId();
+      reg.tripGroup = tg;
+      const ret = { ...base, ...shared, id: genId(), voyageId: returnId, tripGroup: tg, serial: genSerial(returnId), staff: getUserName(), createdAt: base.createdAt };
+      // 樂觀更新：原筆改帶 tripGroup、並新增回程
+      const ix = registrations.findIndex(r => r.id === reg.id);
+      if (ix !== -1) registrations[ix] = reg;
+      registrations.push(ret);
+      markPendingWrite(reg.id); markPendingWrite(ret.id);
+      persistRegs();
+      closeModal();
+      renderVoyages();
+      setSyncStatus('syncing');
+      try {
+        // 原子：更新原筆（帶 tripGroup）+ 新增回程，含容量檢查
+        await apiPost({ action: 'addReturn', existing: reg, ret });
+        fetchRegs(); // 背景確認，不 await
+      } catch(e) {
+        if (e.message !== 'AUTH') {
+          // 撤回：原筆還原成編輯前狀態、移除新回程（用 reg.id，editingRegId 已被 closeModal 清空）
+          clearPending(reg.id); clearPending(ret.id);
+          const jx = registrations.findIndex(r => r.id === reg.id);
+          if (jx !== -1) registrations[jx] = origBackup;
+          registrations = registrations.filter(r => r.id !== ret.id);
+          persistRegs();
+          renderVoyages();
+          setSyncStatus('error', '登記失敗');
+          alert('補登回程失敗：' + e.message);
+          await fetchRegs();
+        }
+      }
+      return; // 不再走下面的一般編輯流程
+    }
+    // 找配對的另一趟（同一去回程組），同步共用欄位（保留它自己的航次/序號/單位/登記人員）
+    let pairedReg = null;
+    if (orig?.tripGroup) {
+      const paired = registrations.find(r => r.tripGroup === orig.tripGroup && r.id !== editingRegId);
+      if (paired) pairedReg = { ...paired, ...shared };
+    }
     const idx = registrations.findIndex(r => r.id === editingRegId);
-    if (idx !== -1) registrations[idx] = reg;
-    else registrations.push(reg);
-    localStorage.setItem('phRegs', JSON.stringify(registrations));
+    if (idx !== -1) registrations[idx] = reg; else registrations.push(reg);
+    markPendingWrite(reg.id);
+    if (pairedReg) {
+      const pIdx = registrations.findIndex(r => r.id === pairedReg.id);
+      if (pIdx !== -1) registrations[pIdx] = pairedReg;
+      markPendingWrite(pairedReg.id);
+    }
+    persistRegs();
     closeModal();
     renderVoyages();
-    // 再同步雲端（刪舊 + 新增），等 Apps Script 寫入後再拉
     setSyncStatus('syncing');
     try {
-      await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'delete', id: reg.id }) });
-      await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'add', ...reg }) });
-      await new Promise(r => setTimeout(r, 2000));
-      await fetchRegs();
+      if (pairedReg) {
+        // 去回程一組：原子更新，兩航次都檢查容量，一起成功或一起不改
+        await apiPost({ action: 'updatePair', a: reg, b: pairedReg });
+      } else {
+        await apiPost({ action: 'update', ...reg });
+      }
+      fetchRegs(); // 背景確認，不 await
     } catch(e) {
-      setSyncStatus('error', '已暫存本機');
+      if (e.message !== 'AUTH') {
+        clearPending(reg.id); if (pairedReg) clearPending(pairedReg.id);
+        setSyncStatus('error', '儲存失敗');
+        alert('儲存失敗：' + e.message + '\n畫面將重新整理為伺服器最新狀態');
+        await fetchRegs();   // 失敗時才同步拉回真實狀態
+      }
     }
   } else {
-    closeModal();
-    await addRegRemote(reg);
+    // 新增模式
+    const roundTrip = document.getElementById('regRoundTrip').checked;
+
+    if (roundTrip) {
+      const returnId = document.getElementById('regReturnVoyage').value;
+      if (!returnId) { alert('請選擇回程航次'); return; }
+      if (returnId === base.voyageId) { alert('回程航次不能與去程相同'); return; }
+      if (!canFit(base.voyageId, selfCount, sepCount)) { alert('去程航次台數會超過上限，無法登記'); return; }
+      if (!canFit(returnId, selfCount, sepCount)) { alert('回程航次台數會超過上限，無法登記'); return; }
+      const tg = genId();   // 去回程共用的組別
+      const outbound = { ...base, id: genId(), selfCount, sepCount, serial: genSerial(base.voyageId), tripGroup: tg, ...cl };
+      const ret      = { ...base, id: genId(), voyageId: returnId, selfCount, sepCount, serial: genSerial(returnId), tripGroup: tg, ...cl };
+      // 樂觀更新：兩筆一起加入本機，立即重繪
+      registrations.push(outbound, ret);
+      markPendingWrite(outbound.id); markPendingWrite(ret.id);
+      persistRegs();
+      closeModal();
+      renderVoyages();
+      setSyncStatus('syncing');
+      try {
+        // 原子化：去回程一起送，後端兩航次都檢查容量，一起成功或一起不寫入
+        await apiPost({ action: 'addPair', outbound, ret });
+        fetchRegs(); // 背景確認，不 await
+      } catch(e) {
+        if (e.message !== 'AUTH') {
+          // 撤回兩筆樂觀更新
+          clearPending(outbound.id); clearPending(ret.id);
+          registrations = registrations.filter(r => r.id !== outbound.id && r.id !== ret.id);
+          persistRegs();
+          renderVoyages();
+          setSyncStatus('error', '登記失敗');
+          alert('登記失敗：' + e.message);
+          await fetchRegs();
+        }
+      }
+    } else {
+      // 本機先擋明顯超量（最終仍以後端即時檢查為準）
+      if (!canFit(base.voyageId, selfCount, sepCount)) { alert('此航次台數會超過上限，無法登記'); return; }
+      closeModal();
+      addRegRemote({
+        ...base,
+        id: genId(),
+        selfCount,
+        sepCount,
+        serial: genSerial(base.voyageId),
+        ...cl,
+      });
+    }
   }
 }
 
 async function deleteReg(regId) {
-  if (!confirm('確定要刪除此筆登記紀錄？')) return;
-  await deleteRegRemote(regId);
+  if (!canWrite()) return;   // 唯讀帳號不可刪除
+  const r = registrations.find(x => x.id === regId);
+  const paired = (r && r.tripGroup) ? registrations.find(x => x.tripGroup === r.tripGroup && x.id !== regId) : null;
+  if (paired) {
+    if (!confirm('此筆為去回程的一組（去程＋回程）。\n刪除會同時移除去程與回程兩筆，確定嗎？')) return;
+    await deletePairRemote(regId, paired.id);   // 原子刪除兩筆，避免只刪一半
+  } else {
+    if (!confirm('確定要刪除此筆登記紀錄？')) return;
+    await deleteRegRemote(regId);
+  }
+}
+
+// 原子刪除去回程一組（後端 deletePair 一次刪兩筆）
+async function deletePairRemote(id1, id2) {
+  if (!API_URL) { alert('系統未設定後端，無法刪除'); return; }
+  const backup = registrations.filter(r => r.id === id1 || r.id === id2);
+  registrations = registrations.filter(r => r.id !== id1 && r.id !== id2);
+  markPendingDelete(id1); markPendingDelete(id2);
+  persistRegs();
+  renderVoyages();
+  setSyncStatus('syncing');
+  try {
+    await apiPost({ action: 'deletePair', id1, id2 });
+    fetchRegs(); // 背景確認，不 await
+  } catch(e) {
+    if (e.message === 'AUTH') return;
+    // 撤回：把兩筆放回本機，再拉回伺服器真實狀態
+    clearPending(id1); clearPending(id2);
+    backup.forEach(b => registrations.push(b));
+    persistRegs();
+    renderVoyages();
+    setSyncStatus('error', '刪除失敗');
+    alert('刪除失敗：' + e.message);
+    await fetchRegs();
+  }
 }
 
 // ────────────────────────────────────────────────
 // 5. Init
 // ────────────────────────────────────────────────
+// ── 登入狀態（存在瀏覽器 localStorage）──
+function getToken()    { return localStorage.getItem('phToken') || ''; }
+function getRole()     { return localStorage.getItem('phRole')  || ''; }
+function canWrite()    { const r = getRole(); return r === 'admin' || r === 'staff'; } // 唯讀(viewer)不可寫
+function getUserName()   { return localStorage.getItem('phName')   || ''; }
+function getUserOffice() { return localStorage.getItem('phOffice') || ''; }
+function setSession(d) {
+  localStorage.setItem('phToken',  d.token);
+  localStorage.setItem('phRole',   d.role || '');
+  localStorage.setItem('phName',   d.displayName || '');
+  localStorage.setItem('phUser',   d.username || '');
+  localStorage.setItem('phOffice', d.office || '');
+}
+function clearSession() {
+  ['phToken','phRole','phName','phUser','phOffice'].forEach(k => localStorage.removeItem(k));
+}
+
+async function doLogin() {
+  const u = document.getElementById('loginUser').value.trim();
+  const p = document.getElementById('loginPass').value;
+  const remember = document.getElementById('loginRemember').checked;
+  const errEl = document.getElementById('loginError');
+  const btn = document.getElementById('loginBtn');
+  if (!u || !p) { errEl.textContent = '請輸入帳號與密碼'; return; }
+  errEl.textContent = '';
+  btn.disabled = true; btn.textContent = '登入中…';
+  try {
+    const res = await fetch(API_URL, { method:'POST', body: JSON.stringify({ action:'login', username:u, password:p, remember:remember }) });
+    const data = await res.json();
+    if (data.ok) {
+      setSession(data);
+      isHandlingAuth = false;
+      // 記住我：只記帳號（不存密碼），下次自動帶入
+      if (remember) localStorage.setItem('phRememberUser', u);
+      else localStorage.removeItem('phRememberUser');
+      document.getElementById('loginPass').value = '';
+      showApp();
+    } else {
+      errEl.textContent = data.msg || '登入失敗';
+    }
+  } catch(e) {
+    errEl.textContent = '無法連線，請稍後再試';
+  }
+  btn.disabled = false; btn.textContent = '登入';
+}
+
+// 顯示/隱藏密碼
+function togglePassword() {
+  const inp = document.getElementById('loginPass');
+  const btn = document.getElementById('togglePass');
+  if (inp.type === 'password') { inp.type = 'text'; btn.textContent = '🙈'; }
+  else { inp.type = 'password'; btn.textContent = '👁'; }
+}
+
+// 忘記密碼（本系統由管理者管帳號，故引導聯絡管理者）
+function forgotPassword() {
+  alert('忘記密碼請聯絡系統管理者協助重設。\n（管理者可在「帳號管理」中重設你的密碼）');
+}
+
+async function doLogout() {
+  const token = getToken();
+  clearSession();
+  try { await fetch(API_URL, { method:'POST', body: JSON.stringify({ action:'logout', token }) }); } catch(e) {}
+  location.reload();
+}
+
+let appStarted = false;
+function showLogin() {
+  document.getElementById('loginScreen').style.display = 'flex';
+  // 記住我：自動帶入上次記住的帳號，並勾選
+  const remembered = localStorage.getItem('phRememberUser') || '';
+  const userInput = document.getElementById('loginUser');
+  const rememberBox = document.getElementById('loginRemember');
+  if (remembered) {
+    userInput.value = remembered;
+    if (rememberBox) rememberBox.checked = true;
+    setTimeout(() => document.getElementById('loginPass').focus(), 50); // 帳號已帶入，游標直接到密碼
+  } else {
+    setTimeout(() => userInput.focus(), 50);
+  }
+}
+function showApp() {
+  document.getElementById('loginScreen').style.display = 'none';
+  const ub = document.getElementById('userBox');
+  if (ub) { ub.style.display = ''; document.getElementById('userName').textContent = '👤 ' + getUserName(); }
+  const isAdmin = (getRole() === 'admin');
+  const ab = document.getElementById('auditBtn');
+  if (ab) ab.style.display = isAdmin ? '' : 'none';
+  const ubn = document.getElementById('userBtn');
+  if (ubn) ubn.style.display = isAdmin ? '' : 'none';
+  const eb = document.getElementById('exportBtn');
+  if (eb) eb.style.display = canWrite() ? '' : 'none';   // 操作員以上可匯出（唯讀不可）
+  if (appStarted) { if (API_URL) fetchRegs(); return; }
+  appStarted = true;
+  // 出發地預設跟著登入者的售票處（高雄/馬公）；管理者/不限則維持預設
+  const myOffice = getUserOffice();
+  if (myOffice === 'ksn' || myOffice === 'pkh') {
+    const of = document.getElementById('originFilter');
+    if (of) of.value = myOffice;
+  }
+  renderVoyages();
+  if (API_URL) { fetchRegs(); fetchVoyageMeta(); }
+  if (API_URL) setInterval(() => { fetchRegs(); fetchVoyageMeta(); }, 30000);
+  // 管理者：登入後背景預載操作紀錄與帳號清單，點開時即可秒顯示
+  if (isAdmin && API_URL) { refreshUserList(); refreshAuditLogs(); }
+}
+
+// ── 管理者後台：操作紀錄 ──
+// 從 localStorage 載入上次快取，重新整理後第一次打開也能先秒顯示
+let auditLogs = safeParse('phAuditCache', []);
+const FIELD_LABELS = {
+  voyageId:'航次', office:'單位', selfCount:'自主台數', sepCount:'人車分離台數',
+  typeSelf:'自主輪椅類型', typeSep:'人車分離輪椅類型', name:'姓名/聯絡人', companion:'陪伴者', simpleWc:'需借用輪椅',
+  staff:'登記人員', serial:'序號', note:'備註', createdAt:'建立時間', clTime:'海巡通關時間',
+  n1:'通知票務群組', n2:'通知旅服所', n3:'海巡通關', n4:'告知負責人', n5:'通知客貨運群組', n6:'填寫搭乘聲明書',
+};
+const ACTION_LABELS = { add:'新增', edit:'修改', delete:'刪除', login:'登入', logout:'登出',
+  createUser:'新增帳號', updateUser:'修改帳號', disableUser:'停用帳號', enableUser:'啟用帳號', resetPassword:'重設密碼', setVoyageTime:'設定通關時間' };
+const ACTION_COLORS = { add:'#16a34a', edit:'#2563eb', delete:'#dc2626', login:'#6b7280', logout:'#6b7280',
+  createUser:'#16a34a', updateUser:'#2563eb', disableUser:'#dc2626', enableUser:'#16a34a', resetPassword:'#2563eb', setVoyageTime:'#7c3aed' };
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function fieldLabel(k){ return FIELD_LABELS[k] || k; }
+function fmtVal(k, v){
+  if (['n1','n2','n3','n4','n5','n6'].includes(k)) return (v===true||v==='TRUE'||v==='true') ? '是' : '否';
+  if (v==='' || v==null) return '（空）';
+  return String(v);
+}
+function summarizeReg(o){
+  const bits = [];
+  if (o.name) bits.push('姓名 ' + o.name);
+  if (o.selfCount) bits.push('自主 ' + o.selfCount + ' 台');
+  if (o.sepCount) bits.push('人車分離 ' + o.sepCount + ' 台');
+  if (o.typeSelf) bits.push('自主類型 ' + o.typeSelf);
+  if (o.typeSep) bits.push('人車類型 ' + o.typeSep);
+  return bits.join('、') || '—';
+}
+function formatAuditDetail(row){
+  let d = {};
+  try { d = row.detail ? JSON.parse(row.detail) : {}; } catch(e){ return esc(row.detail || ''); }
+  if (row.targetType === 'user') {
+    const acct = '帳號 ' + esc(row.targetId || '');
+    const roleZh = (r) => r === 'admin' ? '管理者' : (r === 'viewer' ? '唯讀' : '操作員');
+    const officeZh = (o) => o === 'ksn' ? '高雄' : (o === 'pkh' ? '馬公' : '不限');
+    if (row.action === 'createUser')  return acct + '（' + roleZh(d.role) + '）' + (d.displayName ? '，名稱 ' + esc(d.displayName) : '');
+    if (row.action === 'updateUser')  return acct + '：改為 ' + roleZh(d.role) + '、單位 ' + officeZh(d.office) + (d.displayName ? '、名稱 ' + esc(d.displayName) : '');
+    if (row.action === 'resetPassword') return acct + '：重設密碼';
+    if (row.action === 'disableUser') return acct + '：停用';
+    if (row.action === 'enableUser')  return acct + '：啟用';
+    return acct;
+  }
+  if (row.action === 'edit' && d.changes) {
+    const keys = Object.keys(d.changes);
+    if (!keys.length) return '（無欄位變動）';
+    return keys.map(k => `${esc(fieldLabel(k))}：<span style="color:#dc2626">${esc(fmtVal(k,d.changes[k].from))}</span> → <span style="color:#16a34a">${esc(fmtVal(k,d.changes[k].to))}</span>`).join('；');
+  }
+  if (row.action === 'add' && d.after)    return esc(summarizeReg(d.after));
+  if (row.action === 'delete' && d.before) return '（刪除）' + esc(summarizeReg(d.before));
+  if (row.action === 'setVoyageTime') return '航次 ' + esc(row.targetId || '') + '：通關時間 ' + (d.clTime ? esc(d.clTime) : '（清除）');
+  if (row.action === 'login')  return row.result === 'fail' ? '<span style="color:#dc2626">登入失敗</span>' : '登入成功';
+  if (row.action === 'logout') return '登出';
+  return '';
+}
+// 設定筆數與使用者篩選下拉（保留使用者目前選的篩選值）
+function renderAuditMeta(total){
+  const t = (typeof total === 'number') ? total : auditLogs.length;
+  document.getElementById('auditCount').textContent =
+    `共 ${t} 筆` + (t > auditLogs.length ? `（顯示最新 ${auditLogs.length} 筆）` : '');
+  const sel = document.getElementById('auditFilterUser');
+  const cur = sel.value;
+  const users = {};
+  auditLogs.forEach(r => { if (r.username) users[r.username] = r.displayName || r.username; });
+  sel.innerHTML = '<option value="">全部</option>' +
+    Object.keys(users).map(u => `<option value="${esc(u)}">${esc(users[u])}</option>`).join('');
+  if ([].slice.call(sel.options).some(o => o.value === cur)) sel.value = cur;
+}
+function openAuditLog(){
+  document.getElementById('auditOverlay').style.display = 'flex';
+  const body = document.getElementById('auditTableBody');
+  // 有快取先立即顯示上次資料；沒有才顯示載入中
+  if (auditLogs.length) { renderAuditMeta(); renderAuditTable(); }
+  else body.innerHTML = '<tr><td colspan="5" style="padding:24px;text-align:center;color:#9ca3af;">載入中…</td></tr>';
+  refreshAuditLogs(); // 背景更新，不 await
+}
+// 背景抓最新操作紀錄、存入快取；面板開著才順便重繪
+async function refreshAuditLogs(){
+  try {
+    const data = await apiPost({ action: 'getAuditLog' });
+    auditLogs = data.logs || [];
+    localStorage.setItem('phAuditCache', JSON.stringify(auditLogs));
+    if (document.getElementById('auditOverlay').style.display === 'flex') { renderAuditMeta(data.total); renderAuditTable(); }
+    return true;
+  } catch(e){
+    if (e.message === 'AUTH') { if (document.getElementById('auditOverlay').style.display === 'flex') closeAuditLog(); return false; }
+    if (document.getElementById('auditOverlay').style.display === 'flex' && !auditLogs.length)
+      document.getElementById('auditTableBody').innerHTML = `<tr><td colspan="5" style="padding:24px;text-align:center;color:#dc2626;">載入失敗：${esc(e.message)}</td></tr>`;
+    return false;
+  }
+}
+function renderAuditTable(){
+  const fU = document.getElementById('auditFilterUser').value;
+  const fA = document.getElementById('auditFilterAction').value;
+  const fD = document.getElementById('auditFilterDate').value;
+  const rows = auditLogs.filter(r => {
+    if (fU && String(r.username) !== fU) return false;
+    if (fA && String(r.action) !== fA) return false;
+    if (fD) { const localDate = r.at ? new Date(r.at).toLocaleDateString('sv-SE') : ''; if (localDate !== fD) return false; }
+    return true;
+  });
+  const tbody = document.getElementById('auditTableBody');
+  document.getElementById('auditEmpty').style.display = rows.length ? 'none' : '';
+  tbody.innerHTML = rows.map(r => {
+    const t = r.at ? new Date(r.at).toLocaleString('zh-TW') : '';
+    const aLbl = ACTION_LABELS[r.action] || r.action;
+    const aClr = ACTION_COLORS[r.action] || '#374151';
+    return `<tr style="border-bottom:1px solid #eef2f7;">
+      <td style="padding:7px 12px;white-space:nowrap;color:#6b7280;">${esc(t)}</td>
+      <td style="padding:7px 12px;white-space:nowrap;font-weight:600;">${esc(r.displayName || r.username || '')}</td>
+      <td style="padding:7px 12px;white-space:nowrap;"><span style="color:${aClr};font-weight:700;">${esc(aLbl)}</span></td>
+      <td style="padding:7px 12px;white-space:nowrap;color:#1e40af;">${esc(r.targetSerial || '')}</td>
+      <td style="padding:7px 12px;">${formatAuditDetail(r)}</td>
+    </tr>`;
+  }).join('');
+}
+function clearAuditFilters(){
+  document.getElementById('auditFilterUser').value = '';
+  document.getElementById('auditFilterAction').value = '';
+  document.getElementById('auditFilterDate').value = '';
+  renderAuditTable();
+}
+function closeAuditLog(){ document.getElementById('auditOverlay').style.display = 'none'; }
+
+// ── 管理者後台：帳號管理 ──
+let userList = safeParse('phUsersCache', []);
+let editingUser = null;   // 目前正在行內編輯的帳號
+const OFFICE_LABELS = { ksn:'高雄', pkh:'馬公', '':'不限' };
+async function openUserMgmt(){
+  document.getElementById('userOverlay').style.display = 'flex';
+  document.getElementById('nuMsg').textContent = '';
+  editingUser = null;
+  const tb = document.getElementById('userTableBody');
+  // 有快取先立即顯示（背景再更新）；沒有才顯示載入中
+  if (userList.length) renderUserTable();
+  else tb.innerHTML = '<tr><td colspan="6" style="padding:24px;text-align:center;color:#9ca3af;">載入中…</td></tr>';
+  refreshUserList(); // 背景更新，不 await
+}
+// 背景抓最新帳號清單、存入快取；面板開著才順便重繪
+async function refreshUserList(){
+  try {
+    const data = await apiPost({ action: 'listUsers' });
+    userList = data.users || [];
+    localStorage.setItem('phUsersCache', JSON.stringify(userList));
+    if (document.getElementById('userOverlay').style.display === 'flex') renderUserTable();
+    return true;
+  } catch(e){
+    if (e.message === 'AUTH') { if (document.getElementById('userOverlay').style.display === 'flex') closeUserMgmt(); return false; }
+    if (document.getElementById('userOverlay').style.display === 'flex' && !userList.length)
+      document.getElementById('userTableBody').innerHTML = `<tr><td colspan="6" style="padding:24px;text-align:center;color:#dc2626;">載入失敗：${esc(e.message)}</td></tr>`;
+    return false;
+  }
+}
+function renderUserTable(){
+  const me = localStorage.getItem('phUser') || '';
+  document.getElementById('userTableBody').innerHTML = userList.map(u => {
+    // 行內編輯模式
+    if (editingUser === u.username) {
+      const sel = (v, cur) => v === cur ? ' selected' : '';
+      return `<tr style="border-bottom:1px solid #eef2f7;background:#fffbeb;">
+        <td style="padding:7px 12px;font-weight:600;">${esc(u.username)}</td>
+        <td style="padding:7px 12px;"><input id="editName" type="text" value="${esc(u.displayName||'')}" style="width:96px;padding:4px 6px;border:1px solid #d1d5db;border-radius:5px;"></td>
+        <td style="padding:7px 12px;"><select id="editRole" style="padding:4px;border:1px solid #d1d5db;border-radius:5px;">
+          <option value="staff"${sel('staff',u.role)}>操作員</option>
+          <option value="viewer"${sel('viewer',u.role)}>唯讀</option>
+          <option value="admin"${sel('admin',u.role)}>管理者</option>
+        </select></td>
+        <td style="padding:7px 12px;"><select id="editOffice" style="padding:4px;border:1px solid #d1d5db;border-radius:5px;">
+          <option value=""${sel('',u.office||'')}>不限</option>
+          <option value="ksn"${sel('ksn',u.office)}>高雄</option>
+          <option value="pkh"${sel('pkh',u.office)}>馬公</option>
+        </select></td>
+        <td style="padding:7px 12px;">${u.active ? '啟用中' : '已停用'}</td>
+        <td style="padding:7px 12px;display:flex;gap:6px;">
+          <button data-act="save-edit" data-user="${esc(u.username)}" style="padding:3px 10px;font-size:12px;background:#2563eb;color:#fff;border:none;border-radius:5px;cursor:pointer;">儲存</button>
+          <button data-act="cancel-edit" style="padding:3px 8px;font-size:12px;background:#f3f4f6;border:1px solid #d1d5db;border-radius:5px;cursor:pointer;">取消</button>
+        </td>
+      </tr>`;
+    }
+    const roleLabel = u.role === 'admin' ? '管理者' : (u.role === 'viewer' ? '唯讀' : '操作員');
+    const statusHtml = u.active
+      ? '<span style="color:#16a34a;font-weight:700;">啟用中</span>'
+      : '<span style="color:#dc2626;font-weight:700;">已停用</span>';
+    const editBtn = `<button data-act="edit" data-user="${esc(u.username)}" style="padding:3px 8px;font-size:12px;background:#f5f3ff;color:#7c3aed;border:1px solid #ddd6fe;border-radius:5px;cursor:pointer;">編輯</button>`;
+    const toggleBtn = u.active
+      ? `<button data-act="disable" data-user="${esc(u.username)}" style="padding:3px 8px;font-size:12px;background:#fef2f2;color:#dc2626;border:1px solid #fecaca;border-radius:5px;cursor:pointer;">停用</button>`
+      : `<button data-act="enable" data-user="${esc(u.username)}" style="padding:3px 8px;font-size:12px;background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;border-radius:5px;cursor:pointer;">啟用</button>`;
+    const pwBtn = `<button data-act="reset" data-user="${esc(u.username)}" style="padding:3px 8px;font-size:12px;background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;border-radius:5px;cursor:pointer;">重設密碼</button>`;
+    const meTag = (u.username === me) ? '<span style="font-size:11px;color:#9ca3af;">（你）</span>' : '';
+    return `<tr style="border-bottom:1px solid #eef2f7;">
+      <td style="padding:7px 12px;font-weight:600;">${esc(u.username)} ${meTag}</td>
+      <td style="padding:7px 12px;">${esc(u.displayName||'')}</td>
+      <td style="padding:7px 12px;">${roleLabel}</td>
+      <td style="padding:7px 12px;">${OFFICE_LABELS[u.office] || esc(u.office||'不限')}</td>
+      <td style="padding:7px 12px;">${statusHtml}</td>
+      <td style="padding:7px 12px;display:flex;gap:6px;flex-wrap:wrap;">${editBtn}${toggleBtn}${pwBtn}</td>
+    </tr>`;
+  }).join('');
+}
+function startEditUser(username){ editingUser = username; renderUserTable(); }
+function cancelEditUser(){ editingUser = null; renderUserTable(); }
+async function saveEditUser(username){
+  const displayName = document.getElementById('editName').value.trim();
+  const role = document.getElementById('editRole').value;
+  const office = document.getElementById('editOffice').value;
+  try {
+    await apiPost({ action: 'updateUser', username, displayName, role, office });
+    // 本機直接更新該列，不重抓整份清單（省一趟來回）
+    const u = userList.find(x => x.username === username);
+    if (u) { if (displayName) u.displayName = displayName; u.role = role; u.office = office; }
+    localStorage.setItem('phUsersCache', JSON.stringify(userList));
+    editingUser = null;
+    renderUserTable();
+  } catch(e){
+    if (e.message === 'AUTH') { closeUserMgmt(); return; }
+    alert('儲存失敗：' + e.message);
+  }
+}
+async function submitNewUser(){
+  const msg = document.getElementById('nuMsg');
+  const payload = {
+    action: 'createUser',
+    username: document.getElementById('nuUser').value.trim(),
+    displayName: document.getElementById('nuName').value.trim(),
+    password: document.getElementById('nuPass').value,
+    role: document.getElementById('nuRole').value,
+    office: document.getElementById('nuOffice').value,
+  };
+  if (!payload.username || !payload.displayName || !payload.password) { msg.style.color='#dc2626'; msg.textContent='帳號、名稱、密碼皆必填'; return; }
+  try {
+    await apiPost(payload);
+    const okName = payload.username;
+    // 本機直接加入清單，不重抓整份（省一趟來回）
+    userList.push({ username: payload.username, displayName: payload.displayName, role: payload.role, office: payload.office, active: true, createdAt: new Date().toISOString() });
+    localStorage.setItem('phUsersCache', JSON.stringify(userList));
+    document.getElementById('nuUser').value = '';
+    document.getElementById('nuName').value = '';
+    document.getElementById('nuPass').value = '';
+    renderUserTable();
+    msg.style.color = '#16a34a';
+    msg.textContent = `已新增帳號「${okName}」`;
+  } catch(e){
+    if (e.message === 'AUTH') { closeUserMgmt(); return; }
+    msg.style.color = '#dc2626';
+    msg.textContent = '新增失敗：' + e.message;
+  }
+}
+async function toggleUserActive(username, active){
+  if (!confirm((active?'啟用':'停用') + `帳號「${username}」？`)) return;
+  try {
+    await apiPost({ action: 'setUserActive', username, active });
+    // 本機直接切換狀態，不重抓整份清單（省一趟來回）
+    const u = userList.find(x => x.username === username);
+    if (u) u.active = active;
+    localStorage.setItem('phUsersCache', JSON.stringify(userList));
+    renderUserTable();
+  } catch(e){
+    if (e.message === 'AUTH') { closeUserMgmt(); return; }
+    alert('操作失敗：' + e.message);
+  }
+}
+async function doResetPassword(username){
+  const pw = prompt(`為「${username}」設定新密碼（至少 4 碼）：`);
+  if (pw === null) return;
+  if (pw.length < 4) { alert('密碼至少 4 碼'); return; }
+  try {
+    await apiPost({ action: 'resetPassword', username, password: pw });
+    alert(`已重設「${username}」的密碼，該帳號需用新密碼重新登入。`);
+  } catch(e){
+    if (e.message === 'AUTH') { closeUserMgmt(); return; }
+    alert('重設失敗：' + e.message);
+  }
+}
+function closeUserMgmt(){ document.getElementById('userOverlay').style.display = 'none'; }
+
 document.addEventListener('DOMContentLoaded', () => {
   const today = new Date().toISOString().slice(0,10);
   document.getElementById('dateFilter').value = today;
   document.getElementById('todayBadge').textContent = '📅 ' + today;
-
   if (!API_URL) setSyncStatus('local');
-  renderVoyages();
-
-  // 首次載入從雲端抓資料
-  if (API_URL) { fetchRegs(); fetchChecklists(); }
-
-  // 每 30 秒自動同步一次
-  if (API_URL) setInterval(() => { fetchRegs(); fetchChecklists(); }, 30000);
 
   // close modal on overlay click
   document.getElementById('modalOverlay').addEventListener('click', e => {
     if (e.target === e.currentTarget) closeModal();
   });
+  // 帳號管理按鈕（事件委派，避免帳號含特殊字元破壞 inline onclick）
+  document.getElementById('userTableBody').addEventListener('click', e => {
+    const btn = e.target.closest('button[data-act]');
+    if (!btn) return;
+    const user = btn.getAttribute('data-user');
+    const act = btn.getAttribute('data-act');
+    if (act === 'disable') toggleUserActive(user, false);
+    else if (act === 'enable') toggleUserActive(user, true);
+    else if (act === 'reset') doResetPassword(user);
+    else if (act === 'edit') startEditUser(user);
+    else if (act === 'save-edit') saveEditUser(user);
+    else if (act === 'cancel-edit') cancelEditUser();
+  });
+
+  // 登入閘門：有通行證才進系統，否則顯示登入畫面
+  if (getToken()) showApp();
+  else showLogin();
 });
 
 // 設定 API 網址（在瀏覽器 console 執行：setApiUrl('你的網址')）
@@ -1247,6 +2256,7 @@ function setApiUrl(url) {
 // 6. 匯出當月 Excel 報表
 // ────────────────────────────────────────────────
 function exportMonthReport() {
+  if (!canWrite()) { alert('唯讀帳號不可匯出報表'); return; }
   const dateFilter = document.getElementById('dateFilter').value;
   const yearMonth = dateFilter ? dateFilter.slice(0,7) : new Date().toISOString().slice(0,7);
   const [yr, mo] = yearMonth.split('-');
@@ -1264,38 +2274,54 @@ function exportMonthReport() {
     ['台灣航業股份有限公司　澎湖輪'],
     [`${monthLabel}無障礙輪椅搭乘登記彙總表`],
     [''],
-    ['航班日期', '開航時間', '航線', '高雄登記(台)', '馬公登記(台)', '自主登輪(台)', '人車分離(台)', '合計(台)', '手動輪椅', '電動輪椅', '電動代步車', '其他', '狀態'],
+    ['航班日期', '開航時間', '航線', '自主登輪(台)', '人車分離(台)', '合計(台)', '手動輪椅', '電動輪椅', '電動代步車', '動力牽引車頭', '需借用船上輪椅(位)', '狀態', '高雄登記(台)', '馬公登記(台)'],
   ];
 
-  let totalAll = 0, totalKsn = 0, totalPkh = 0;
+  let totalAll = 0, totalKsn = 0, totalPkh = 0, totalSimpleWc = 0;
   let fullCount = 0, warnCount = 0;
 
   monthVoyages.forEach(v => {
     const regs = getVoyageRegs(v.id);
-    const total    = regs.reduce((s,r) => s + Number(r.count), 0);
-    const ksn      = regs.filter(r=>r.office==='ksn').reduce((s,r)=>s+Number(r.count),0);
-    const pkh      = regs.filter(r=>r.office==='pkh').reduce((s,r)=>s+Number(r.count),0);
-    const selfC    = regs.filter(r=>r.boardingType!=='人車分離').reduce((s,r)=>s+Number(r.count),0);
-    const sepC     = regs.filter(r=>r.boardingType==='人車分離').reduce((s,r)=>s+Number(r.count),0);
-    const manual   = regs.filter(r=>r.type==='手動輪椅').reduce((s,r)=>s+Number(r.count),0);
-    const electric = regs.filter(r=>r.type==='電動輪椅').reduce((s,r)=>s+Number(r.count),0);
-    const scooter  = regs.filter(r=>r.type==='電動代步車').reduce((s,r)=>s+Number(r.count),0);
-    const other    = regs.filter(r=>!['手動輪椅','電動輪椅','電動代步車'].includes(r.type)).reduce((s,r)=>s+Number(r.count),0);
+    const total    = regs.reduce((s,r) => s + regTotalCount(r), 0);
+    const ksn      = regs.filter(r=>r.office==='ksn').reduce((s,r)=>s+regTotalCount(r),0);
+    const pkh      = regs.filter(r=>r.office==='pkh').reduce((s,r)=>s+regTotalCount(r),0);
+    const selfC    = regs.reduce((s,r)=>s+regSelfCount(r),0);
+    const sepC     = regs.reduce((s,r)=>s+regSepCount(r),0);
+    // 依輪椅類型統計（自主+人車分離各自的類型分開累計）
+    const typeSum = {};
+    regs.forEach(r => {
+      const bd = regTypeBreakdown(r);
+      Object.keys(bd).forEach(t => { typeSum[t] = (typeSum[t]||0) + bd[t]; });
+    });
+    const manual   = typeSum['手動輪椅']     || 0;
+    const electric = typeSum['電動輪椅']     || 0;
+    const scooter  = typeSum['電動代步車']   || 0;
+    const tractor  = typeSum['動力牽引車頭'] || 0;
+    const simpleWcSum = regs.reduce((s,r) => s + (Number(r.simpleWc) || 0), 0); // 該航次需借用船上輪椅合計
     const status   = total >= MAX_TOTAL ? '已滿額' : total >= 8 ? '接近滿額' : total > 0 ? '正常' : '—';
 
-    totalAll += total; totalKsn += ksn; totalPkh += pkh;
+    totalAll += total; totalKsn += ksn; totalPkh += pkh; totalSimpleWc += simpleWcSum;
     if (total >= MAX_TOTAL) fullCount++;
     else if (total >= 8) warnCount++;
 
     summaryData.push([
       v.date, v.departTime, routeLabel(v.route),
-      ksn||'', pkh||'', selfC||'', sepC||'', total||'',
-      manual||'', electric||'', scooter||'', other||'', status
+      selfC||'', sepC||'', total||'',
+      manual||'', electric||'', scooter||'', tractor||'',
+      simpleWcSum||'', status,
+      ksn||'', pkh||''
     ]);
   });
 
   summaryData.push(['']);
-  summaryData.push(['合計', '', '', totalKsn, totalPkh, '', '', totalAll, '', '', '', '', '']);
+  // 合計列（依新欄序對位：合計=index5、需借用=10、高雄=12、馬公=13）
+  const totalRow = new Array(14).fill('');
+  totalRow[0] = '合計';
+  totalRow[5] = totalAll;
+  totalRow[10] = totalSimpleWc;
+  totalRow[12] = totalKsn;
+  totalRow[13] = totalPkh;
+  summaryData.push(totalRow);
   summaryData.push(['']);
   summaryData.push([`已滿額航次：${fullCount} 班`, '', `接近滿額航次：${warnCount} 班`]);
   summaryData.push(['']);
@@ -1305,13 +2331,13 @@ function exportMonthReport() {
 
   // 欄寬
   ws1['!cols'] = [
-    {wch:14},{wch:10},{wch:14},{wch:12},{wch:12},{wch:12},{wch:12},{wch:10},
-    {wch:10},{wch:10},{wch:12},{wch:8},{wch:10}
+    {wch:14},{wch:10},{wch:14},{wch:12},{wch:12},{wch:10},
+    {wch:10},{wch:10},{wch:12},{wch:14},{wch:16},{wch:10},{wch:12},{wch:12}
   ];
   // 合併標題列
   ws1['!merges'] = [
-    {s:{r:0,c:0}, e:{r:0,c:12}},
-    {s:{r:1,c:0}, e:{r:1,c:12}},
+    {s:{r:0,c:0}, e:{r:0,c:13}},
+    {s:{r:1,c:0}, e:{r:1,c:13}},
   ];
 
   XLSX.utils.book_append_sheet(wb, ws1, `${monthLabel}彙總`);
@@ -1337,8 +2363,8 @@ function exportMonthReport() {
       new Date(r.createdAt).toLocaleString('zh-TW'),
       v.date, v.departTime, routeLabel(v.route),
       r.office === 'ksn' ? '高雄售票處' : '馬公售票處',
-      r.boardingType || '自主登輪',
-      r.type, Number(r.count), r.name||'', r.companion||'', r.note||''
+      regCountLabel(r),
+      regTypeOnlyLabel(r), regTotalCount(r), r.name||'', r.companion||'', r.note||''
     ]);
   });
 
