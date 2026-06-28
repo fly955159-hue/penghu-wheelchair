@@ -1194,7 +1194,7 @@ function regTypeOnlyLabel(r) {
   const sc = regSelfCount(r), pc = regSepCount(r);
   const parts = [];
   if (sc > 0) parts.push(`自主:${regSelfType(r) || '其他'}`);
-  if (pc > 0) parts.push(`人車分:${regSepType(r) || '其他'}`);
+  if (pc > 0) parts.push(`人車分離:${regSepType(r) || '其他'}`);
   return parts.join('　') || '—';
 }
 // 一筆登記依輪椅類型拆分台數 → { 類型: 台數 }
@@ -2346,7 +2346,7 @@ function exportMonthReport() {
   const detailData = [
     [`${monthLabel}輪椅登記明細`],
     [''],
-    ['登記時間', '航班日期', '開航時間', '航線', '登記單位', '登記類型', '輪椅類型', '台數', '旅客姓名', '陪伴者', '備註'],
+    ['登記時間', '航班日期', '開航時間', '航線', '登記單位', '登記類型', '輪椅類型', '台數', '需借用船上輪椅(位)', '旅客姓名', '陪伴者', '備註'],
   ];
 
   const monthRegs = registrations
@@ -2364,7 +2364,7 @@ function exportMonthReport() {
       v.date, v.departTime, routeLabel(v.route),
       r.office === 'ksn' ? '高雄售票處' : '馬公售票處',
       regCountLabel(r),
-      regTypeOnlyLabel(r), regTotalCount(r), r.name||'', r.companion||'', r.note||''
+      regTypeOnlyLabel(r), regTotalCount(r), Number(r.simpleWc) || 0, r.name||'', r.companion||'', r.note||''
     ]);
   });
 
@@ -2373,9 +2373,9 @@ function exportMonthReport() {
   const ws2 = XLSX.utils.aoa_to_sheet(detailData);
   ws2['!cols'] = [
     {wch:20},{wch:12},{wch:10},{wch:14},{wch:12},
-    {wch:12},{wch:12},{wch:8},{wch:16},{wch:10},{wch:20}
+    {wch:12},{wch:14},{wch:8},{wch:16},{wch:16},{wch:10},{wch:20}
   ];
-  ws2['!merges'] = [{s:{r:0,c:0}, e:{r:0,c:10}}];
+  ws2['!merges'] = [{s:{r:0,c:0}, e:{r:0,c:11}}];
 
   XLSX.utils.book_append_sheet(wb, ws2, `${monthLabel}明細`);
 
