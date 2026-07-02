@@ -1931,7 +1931,9 @@ function showApp() {
   const ubn = document.getElementById('userBtn');
   if (ubn) ubn.style.display = isAdmin ? '' : 'none';
   const eb = document.getElementById('exportBtn');
-  if (eb) eb.style.display = canWrite() ? '' : 'none';   // 操作員以上可匯出（唯讀不可）
+  // 操作員以上可匯出；唯讀者用 visibility:hidden（隱形但保留版面位置），
+  // 讓統計數字在三種身分下位置一致（不會因為按鈕消失而滑到最右）
+  if (eb) eb.style.visibility = canWrite() ? 'visible' : 'hidden';
   if (appStarted) { if (API_URL) fetchRegs(); return; }
   appStarted = true;
   // 出發地預設跟著登入者的售票處（高雄/馬公）；管理者/不限則維持預設
