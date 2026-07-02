@@ -319,15 +319,17 @@
     padding: 16px 24px;
     margin-bottom: 24px;
     box-shadow: 0 1px 4px rgba(0,0,0,0.08);
-    display: flex;
-    gap: 24px;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;  /* 標題左 / 數字置中 / 按鈕右 */
     align-items: center;
+    gap: 16px;
   }
+  .stat-group { display: flex; gap: 24px; justify-content: center; flex-wrap: wrap; }
   .stat { text-align: center; }
   .stat .num { font-size: 24px; font-weight: 800; color: var(--primary); }
   .stat .lbl { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
-  .stats-bar h3 { font-size: 14px; color: var(--text-muted); margin-right: auto; }
+  .stats-bar h3 { font-size: 14px; color: var(--text-muted); justify-self: start; }
+  .stats-bar .btn-export { justify-self: end; }
 
   /* ── Date nav ── */
   .date-nav {
@@ -414,7 +416,8 @@
     header { flex-wrap: wrap; }
     .header-badge { margin-left: 0; }
     .voyage-selector { flex-direction: column; }
-    .stats-bar { gap: 16px; }
+    .stats-bar { grid-template-columns: 1fr; gap: 12px; justify-items: center; }
+    .stats-bar h3, .stats-bar .btn-export { justify-self: center; }
     .modal { padding: 20px; }
   }
 </style>
@@ -617,10 +620,12 @@
   <!-- 統計列 -->
   <div class="stats-bar" id="statsBar">
     <h3 id="statsMonthLabel">當月統計</h3>
-    <div class="stat"><div class="num" id="statTotal">0</div><div class="lbl">當月登記總台數</div></div>
-    <div class="stat"><div class="num" id="statVoyages">0</div><div class="lbl">已登記航次數</div></div>
-    <div class="stat"><div class="num" id="statFull">0</div><div class="lbl">已滿額航次</div></div>
-    <div class="stat"><div class="num" id="statWarn">0</div><div class="lbl">接近滿額(9~13台)</div></div>
+    <div class="stat-group">
+      <div class="stat"><div class="num" id="statTotal">0</div><div class="lbl">當月登記總台數</div></div>
+      <div class="stat"><div class="num" id="statVoyages">0</div><div class="lbl">已登記航次數</div></div>
+      <div class="stat"><div class="num" id="statFull">0</div><div class="lbl">已滿額航次</div></div>
+      <div class="stat"><div class="num" id="statWarn">0</div><div class="lbl">接近滿額(9~13台)</div></div>
+    </div>
     <button class="btn-export" id="exportBtn" onclick="exportMonthReport()">📊 匯出本月報表</button>
   </div>
 
@@ -1931,9 +1936,9 @@ function showApp() {
   const ubn = document.getElementById('userBtn');
   if (ubn) ubn.style.display = isAdmin ? '' : 'none';
   const eb = document.getElementById('exportBtn');
-  // 操作員以上可匯出；唯讀者用 visibility:hidden（隱形但保留版面位置），
-  // 讓統計數字在三種身分下位置一致（不會因為按鈕消失而滑到最右）
-  if (eb) eb.style.visibility = canWrite() ? 'visible' : 'hidden';
+  // 操作員以上可匯出；唯讀者隱藏按鈕。版面用 grid（標題左/數字中/按鈕右），
+  // 數字固定置中，不會因為按鈕有無而位移，三種身分位置一致。
+  if (eb) eb.style.display = canWrite() ? '' : 'none';
   if (appStarted) { if (API_URL) fetchRegs(); return; }
   appStarted = true;
   // 出發地預設跟著登入者的售票處（高雄/馬公）；管理者/不限則維持預設
