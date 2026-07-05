@@ -2278,7 +2278,27 @@ function setApiUrl(url) {
 // ────────────────────────────────────────────────
 // 6. 匯出當月 Excel 報表
 // ────────────────────────────────────────────────
+// 防連點包裝：建表約需 1 秒，若按下當下沒有回饋，使用者常會再點一次而產生兩個檔案。
+// 按下後立即顯示「產生中」並停用按鈕，產生完成前忽略重複點擊。
+let _reportBusy = false;
 function exportMonthReport() {
+  if (!canWrite()) { alert('唯讀帳號不可匯出報表'); return; }
+  if (_reportBusy) return;                 // 產生中：忽略重複點擊
+  _reportBusy = true;
+  const _btn = document.getElementById('exportBtn');
+  const _origText = _btn ? _btn.textContent : '';
+  if (_btn) { _btn.disabled = true; _btn.textContent = '⏳ 產生中…'; }
+  // 延遲一格讓「產生中」先畫出來，再進行較耗時的建表與下載
+  setTimeout(() => {
+    try { buildMonthReport_(); }
+    catch (e) { alert('匯出報表失敗：' + (e && e.message ? e.message : e)); }
+    finally {
+      if (_btn) { _btn.disabled = false; _btn.textContent = _origText; }
+      _reportBusy = false;
+    }
+  }, 30);
+}
+function buildMonthReport_() {
   if (!canWrite()) { alert('唯讀帳號不可匯出報表'); return; }
   const dateFilter = document.getElementById('dateFilter').value;
   const yearMonth = dateFilter ? dateFilter.slice(0,7) : new Date().toISOString().slice(0,7);
