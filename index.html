@@ -1986,13 +1986,13 @@ function fmtVal(k, v){
   return String(v);
 }
 function summarizeReg(o){
+  // 只顯示台數與需借用（台數 0 的項目不顯示，避免出現無意義的預設類型）
   const bits = [];
-  if (o.name) bits.push('姓名 ' + o.name);
-  if (o.selfCount) bits.push('自主 ' + o.selfCount + ' 台');
-  if (o.sepCount) bits.push('人車分離 ' + o.sepCount + ' 台');
-  if (o.typeSelf) bits.push('自主類型 ' + o.typeSelf);
-  if (o.typeSep) bits.push('人車類型 ' + o.typeSep);
-  return bits.join('、') || '—';
+  const sc = Number(o.selfCount) || 0, pc = Number(o.sepCount) || 0, wc = Number(o.simpleWc) || 0;
+  if (sc > 0) bits.push('自主 ' + sc + ' 台');
+  if (pc > 0) bits.push('人車分離 ' + pc + ' 台');
+  if (wc > 0) bits.push('需借用船上輪椅 ' + wc + ' 台');
+  return bits.join('、') || '（未填台數）';
 }
 function formatAuditDetail(row){
   let d = {};
