@@ -697,6 +697,9 @@
           </select>
         </div>
       </div>
+      <div style="margin-top:8px;padding:7px 10px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;color:#1e40af;font-size:12px;">
+        💡 若旅客沒有自己的輔具、<strong>只需借用船上輪椅</strong>：上方兩欄可維持 <strong>0</strong>，改在下方「需借用船上輪椅」填數量即可登記。
+      </div>
     </div>
     <div class="form-group" id="roundTripGroup">
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600;">
@@ -1189,6 +1192,8 @@ function regTypeLabel(r) {
   const parts = [];
   if (sc > 0) parts.push(`自主 ${sc} 台·${regSelfType(r) || '其他'}`);
   if (pc > 0) parts.push(`人車分 ${pc} 台·${regSepType(r) || '其他'}`);
+  // 沒有自己的輔具、只借用船上輪椅：顯示清楚的標示，而非空的「—」
+  if (sc === 0 && pc === 0 && Number(r.simpleWc) > 0) return '🦽 借用船上輪椅';
   return parts.join('　') || '—';
 }
 // 只顯示台數（匯出「登記類型」欄用）
@@ -1639,7 +1644,13 @@ async function submitReg() {
   if (!currentVoyageId) return;
   const selfCount = parseInt(document.getElementById('regCountSelf').value) || 0;
   const sepCount  = parseInt(document.getElementById('regCountSep').value)  || 0;
-  if (selfCount < 1 && sepCount < 1) { alert('請輸入至少 1 台（自主登輪或人車分離）'); return; }
+  const simpleWc  = parseInt(document.getElementById('regSimpleWc').value)   || 0;
+  // 至少要有一項：自主登輪、人車分離台數，或「需借用船上輪椅」數量。
+  // （允許旅客沒有自己的輔具、只借用船上輪椅時也能登記）
+  if (selfCount < 1 && sepCount < 1 && simpleWc < 1) {
+    alert('請至少填寫一項：自主登輪、人車分離台數，或「需借用船上輪椅」數量');
+    return;
+  }
 
   const base = {
     voyageId:  currentVoyageId,
@@ -1648,7 +1659,7 @@ async function submitReg() {
     typeSep:   document.getElementById('regTypeSep').value,
     name:      document.getElementById('regName').value.trim(),
     companion: document.getElementById('regCompanion').value,
-    simpleWc:  parseInt(document.getElementById('regSimpleWc').value) || 0,  // 此團需借用簡易輪椅數
+    simpleWc,  // 此團需借用船上輪椅數（前面已讀取）
     staff:     getUserName(),   // 登記人員＝目前登入者
     note:      document.getElementById('regNote').value.trim(),
     createdAt: new Date().toISOString(),
