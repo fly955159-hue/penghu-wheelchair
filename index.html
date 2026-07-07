@@ -468,7 +468,7 @@
     <div style="display:flex;gap:10px;flex-wrap:wrap;padding:12px 20px;background:#f8fafc;border-bottom:1px solid #e5e7eb;font-size:13px;">
       <div>使用者：<select id="auditFilterUser" onchange="renderAuditTable()" style="padding:4px 6px;border:1px solid #d1d5db;border-radius:6px;"><option value="">全部</option></select></div>
       <div>動作：<select id="auditFilterAction" onchange="renderAuditTable()" style="padding:4px 6px;border:1px solid #d1d5db;border-radius:6px;">
-        <option value="">全部</option><option value="add">新增</option><option value="edit">修改</option><option value="delete">刪除</option><option value="setVoyageTime">設定通關時間</option><option value="login">登入</option><option value="logout">登出</option>
+        <option value="">全部</option><option value="add">新增</option><option value="edit">修改</option><option value="delete">刪除</option><option value="setVoyageTime">設定通關時間</option><option value="setVoyageCap">設定航次上限</option><option value="setVoyageCancel">停航設定</option><option value="setVoyageMove">航次延期</option><option value="login">登入</option><option value="logout">登出</option>
       </select></div>
       <div>日期：<input type="date" id="auditFilterDate" onchange="renderAuditTable()" style="padding:4px 6px;border:1px solid #d1d5db;border-radius:6px;"></div>
       <button onclick="clearAuditFilters()" style="padding:4px 10px;background:#fff;border:1px solid #d1d5db;border-radius:6px;cursor:pointer;">清除篩選</button>
@@ -896,7 +896,8 @@ function buildSchedule() {
   return voyages;
 }
 
-const SCHEDULE = buildSchedule();
+const BASE_SCHEDULE = buildSchedule();   // 固定班次（可由 PDF 更新）
+let SCHEDULE = BASE_SCHEDULE;            // 實際顯示用＝固定班次套用「延期」覆蓋後（見 applyScheduleOverrides）
 
 // ────────────────────────────────────────────────
 // 2. 雲端同步設定
@@ -947,7 +948,8 @@ function markPendingDelete(id){ if (id){ pendingDeletes[String(id)] = Date.now()
 function clearPending(id){ if (id){ delete pendingWrites[String(id)]; delete pendingDeletes[String(id)]; } }
 
 // ── 航次層級通關時間（整個航次共用）──
-let voyageMeta = safeParse('phVoyageMeta', {}); // voyageId -> {voyageId, clTime, updatedBy, updatedAt}
+let voyageMeta = safeParse('phVoyageMeta', {}); // voyageId -> {voyageId, clTime, updatedBy, updatedAt, capLimit, capOpen, cancelled, cancelReason, movedToDate, movedToTime}
+applyScheduleOverrides();   // 依本機快取的延期設定先套用一次，讓被延期的航次一載入就在正確日期
 let pendingVoyage = {}; // voyageId -> 失效時間戳（剛設定的航次，寬限期內以本機為準）
 function markPendingVoyage(id){ if (id) pendingVoyage[String(id)] = Date.now() + PENDING_GRACE_MS; }
 function clearPendingVoyage(id){ if (id) delete pendingVoyage[String(id)]; }
@@ -1056,6 +1058,7 @@ async function fetchVoyageMeta() {
     });
     voyageMeta = map;
     localStorage.setItem('phVoyageMeta', JSON.stringify(voyageMeta));
+    applyScheduleOverrides();   // 套用最新延期設定，讓被延期的航次落在正確日期
     renderVoyages();
   } catch(e) {
     if (e.message === 'AUTH') return;   // 已導回登入
@@ -1146,6 +1149,92 @@ async function saveVoyageCap(voyageId, limit, open) {
   }
 }
 
+// ── 管理者：逐航次設定停航 / 取消停航（僅管理者）──
+function saveVoyageCancelInline(btn, voyageId, cancel) {
+  if (getRole() !== 'admin') return;
+  let reason = '';
+  if (cancel) {
+    const wrap = btn.closest('.cancel-admin');
+    const inp = wrap ? wrap.querySelector('.cancel-reason-input') : null;
+    reason = inp ? inp.value.trim() : '';
+    if (!reason) { alert('請填停航原因（例：風大停航）'); return; }
+  } else {
+    if (!confirm('確定要取消此航次的停航、恢復可登記嗎？')) return;
+  }
+  saveVoyageCancel(voyageId, cancel, reason);
+}
+async function saveVoyageCancel(voyageId, cancelled, reason) {
+  if (getRole() !== 'admin') { alert('僅管理者可設定停航'); return; }
+  if (!API_URL) { alert('系統未設定後端，無法設定'); return; }
+  const backup = voyageMeta[voyageId];
+  voyageMeta[voyageId] = { ...(voyageMeta[voyageId] || {}), voyageId, cancelled: cancelled, cancelReason: cancelled ? reason : '', updatedBy: getUserName(), updatedAt: new Date().toISOString() };
+  markPendingVoyage(voyageId);
+  localStorage.setItem('phVoyageMeta', JSON.stringify(voyageMeta));
+  renderVoyages();
+  setSyncStatus('syncing');
+  try {
+    await apiPost({ action: 'setVoyageCancel', voyageId, cancelled, cancelReason: cancelled ? reason : '' });
+    fetchVoyageMeta(); // 背景確認，不 await
+  } catch(e) {
+    if (e.message === 'AUTH') return;
+    clearPendingVoyage(voyageId);
+    if (backup) voyageMeta[voyageId] = backup; else delete voyageMeta[voyageId];
+    localStorage.setItem('phVoyageMeta', JSON.stringify(voyageMeta));
+    renderVoyages();
+    setSyncStatus('error', '設定失敗');
+    alert('設定停航失敗：' + e.message);
+  }
+}
+
+// ── 管理者：逐航次延期到其他日期 / 取消延期（僅管理者）──
+function saveVoyageMoveInline(btn, voyageId, doMove) {
+  if (getRole() !== 'admin') return;
+  if (doMove) {
+    const wrap = btn.closest('.move-admin');
+    const dInp = wrap ? wrap.querySelector('.move-date-input') : null;
+    const tInp = wrap ? wrap.querySelector('.move-time-input') : null;
+    const newDate = dInp ? dInp.value.trim() : '';
+    let newTime = tInp ? tInp.value.trim() : '';
+    if (!newDate) { alert('請選擇要延到的日期'); return; }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(newDate)) { alert('日期格式不正確'); return; }
+    const base = BASE_SCHEDULE.find(x => x.id === voyageId);
+    if (base && newDate === base.date) { alert('延期是「改到其他日期」。若只想調整同一天的開航時間，暫請透過更新船期（PDF）處理。'); return; }
+    if (newTime) {
+      if (!/^([01]?\d|2[0-3]):[0-5]\d$/.test(newTime)) { alert('時間格式不正確（HH:MM）'); return; }
+      const p = newTime.split(':'); newTime = ('0' + p[0]).slice(-2) + ':' + p[1];
+    }
+    if (!confirm('確定把這班延到 ' + newDate + (newTime ? ' ' + newTime : '') + ' 嗎？\n已登記的旅客會一起移到該日。')) return;
+    saveVoyageMove(voyageId, newDate, newTime);
+  } else {
+    if (!confirm('確定取消延期、把這班改回原本日期嗎？')) return;
+    saveVoyageMove(voyageId, '', '');
+  }
+}
+async function saveVoyageMove(voyageId, movedToDate, movedToTime) {
+  if (getRole() !== 'admin') { alert('僅管理者可設定延期'); return; }
+  if (!API_URL) { alert('系統未設定後端，無法設定'); return; }
+  const backup = voyageMeta[voyageId];
+  voyageMeta[voyageId] = { ...(voyageMeta[voyageId] || {}), voyageId, movedToDate: movedToDate, movedToTime: movedToDate ? movedToTime : '', updatedBy: getUserName(), updatedAt: new Date().toISOString() };
+  markPendingVoyage(voyageId);
+  localStorage.setItem('phVoyageMeta', JSON.stringify(voyageMeta));
+  applyScheduleOverrides();
+  renderVoyages();
+  setSyncStatus('syncing');
+  try {
+    await apiPost({ action: 'setVoyageMove', voyageId, movedToDate: movedToDate, movedToTime: movedToDate ? movedToTime : '' });
+    fetchVoyageMeta(); // 背景確認，不 await
+  } catch(e) {
+    if (e.message === 'AUTH') return;
+    clearPendingVoyage(voyageId);
+    if (backup) voyageMeta[voyageId] = backup; else delete voyageMeta[voyageId];
+    localStorage.setItem('phVoyageMeta', JSON.stringify(voyageMeta));
+    applyScheduleOverrides();
+    renderVoyages();
+    setSyncStatus('error', '設定失敗');
+    alert('延期設定失敗：' + e.message);
+  }
+}
+
 async function addRegRemote(reg) {
   if (!API_URL) { alert('系統未設定後端，無法儲存'); return; }
   // 樂觀更新：先存入本機並立即重繪，不等伺服器
@@ -1205,6 +1294,30 @@ function voyageCapLimit(voyageId) {
 function voyageCapOpen(voyageId) {
   const m = voyageMeta[voyageId];
   return !!(m && (m.capOpen === true || m.capOpen === 'TRUE' || m.capOpen === 'true'));
+}
+function voyageCancelled(voyageId) {
+  const m = voyageMeta[voyageId];
+  return !!(m && (m.cancelled === true || m.cancelled === 'TRUE' || m.cancelled === 'true'));
+}
+function voyageCancelReason(voyageId) {
+  const m = voyageMeta[voyageId];
+  return (m && m.cancelReason) ? String(m.cancelReason) : '';
+}
+function voyageMovedDate(voyageId) {
+  const m = voyageMeta[voyageId];
+  return (m && m.movedToDate) ? String(m.movedToDate) : '';
+}
+function voyageMovedTime(voyageId) {
+  const m = voyageMeta[voyageId];
+  return (m && m.movedToTime) ? String(m.movedToTime) : '';
+}
+// 依「延期」覆蓋重建 SCHEDULE：被延期的航次改到新日期/時間（航次代號不變，登記自動跟著移動）
+function applyScheduleOverrides() {
+  SCHEDULE = BASE_SCHEDULE.map(v => {
+    const md = voyageMovedDate(v.id);
+    if (!md || md === v.date) return v;
+    return { ...v, date: md, departTime: voyageMovedTime(v.id) || v.departTime, movedFrom: v.date };
+  });
 }
 
 function getVoyageRegs(voyageId) {
@@ -1306,20 +1419,24 @@ function renderVoyages() {
   const dateFilter = document.getElementById('dateFilter').value;
   const originEl = document.getElementById('originFilter');
   const originFilter = originEl ? originEl.value : 'all';
+  const wantRoute = originFilter === 'ksn' ? 'KSN→PKH' : (originFilter === 'pkh' ? 'PKH→KSN' : '');
 
   let filtered = SCHEDULE;
   if (dateFilter) filtered = filtered.filter(v => v.date === dateFilter);
-  if (originFilter && originFilter !== 'all') {
-    // 高雄出發 = KSN→PKH；馬公出發 = PKH→KSN
-    const wantRoute = originFilter === 'ksn' ? 'KSN→PKH' : 'PKH→KSN';
-    filtered = filtered.filter(v => v.route === wantRoute);
+  if (wantRoute) filtered = filtered.filter(v => v.route === wantRoute);
+
+  // 已延期「離開」本日的班：在原日期顯示灰字提示（本班已延至 X/X）
+  let ghosts = [];
+  if (dateFilter) {
+    ghosts = BASE_SCHEDULE.filter(v => v.date === dateFilter && voyageMovedDate(v.id) && voyageMovedDate(v.id) !== dateFilter);
+    if (wantRoute) ghosts = ghosts.filter(v => v.route === wantRoute);
   }
 
   const grid = document.getElementById('voyageGrid');
   const noVoyages = document.getElementById('noVoyages');
   grid.innerHTML = '';
 
-  if (filtered.length === 0) {
+  if (filtered.length === 0 && ghosts.length === 0) {
     noVoyages.style.display = 'block';
     updateStats(filtered);
     return;
@@ -1328,6 +1445,14 @@ function renderVoyages() {
 
   filtered.sort((a,b) => (a.date+a.departTime).localeCompare(b.date+b.departTime));
   filtered.forEach(v => grid.appendChild(buildCard(v)));
+  ghosts.forEach(v => {
+    const md = voyageMovedDate(v.id), mt = voyageMovedTime(v.id);
+    const d = document.createElement('div');
+    d.className = 'voyage-card';
+    d.style.opacity = '0.75';
+    d.innerHTML = `<div style="padding:14px 18px;color:#6b7280;font-size:14px;">🕓 ${v.departTime}　${routeLabel(v.route)}：<b style="color:#b45309;">本班已延至 ${esc(md)}${mt ? ' ' + esc(mt) : ''}</b>（旅客已隨船移至該日）</div>`;
+    grid.appendChild(d);
+  });
   updateStats(filtered);
 }
 
@@ -1337,12 +1462,19 @@ function buildCard(v) {
   const total         = selfCount + separateCount;
   const capLimit      = voyageCapLimit(v.id);   // 該航次上限（管理者可調整，預設 10）
   const capOpen       = voyageCapOpen(v.id);    // 管理者已開放此航次（不限）
-  const status        = capOpen ? 'ok' : getStatus(total, capLimit);
+  const cancelled     = voyageCancelled(v.id);      // 管理者已設此航次停航
+  const cancelReason  = voyageCancelReason(v.id);   // 停航原因（如：風大停航）
+  const status        = cancelled ? 'full' : (capOpen ? 'ok' : getStatus(total, capLimit));
   const regs          = getVoyageRegs(v.id);
   const selfPct       = Math.min(100, Math.round(selfCount / MAX_SELF * 100));
   const sepPct        = Math.min(100, Math.round(separateCount / MAX_SEPARATE * 100));
   const isFull        = !capOpen && total >= capLimit;   // 已達上限且未開放 → 擋
   const isAdminUser   = (getRole() === 'admin');
+  const cancelBanner  = cancelled
+    ? `<div style="margin:8px 18px 0;padding:8px 12px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;color:#b91c1c;font-weight:800;">🚫 ${esc(cancelReason || '停航')}</div>`
+    : '';
+  const moved         = !!v.movedFrom;   // 此航次已延期到其他日期（v.date 已是新日期、movedFrom 為原日期；只有真的換日期才算）
+  const movedFromNote = v.movedFrom ? `　<span style="color:#b45309;font-weight:700;">（原 ${esc(v.movedFrom)} 延期而來）</span>` : '';
 
   const card = document.createElement('div');
   card.className = `voyage-card status-${status}`;
@@ -1395,13 +1527,14 @@ function buildCard(v) {
     <div class="voyage-header status-${status}">
       <div>
         <div class="voyage-title">${v.date} ${v.departTime}　${routeLabel(v.route)}</div>
-        <div class="voyage-time">航班編號：${v.id}${v.note ? '　' + v.note : ''}</div>
+        <div class="voyage-time">航班編號：${v.id}${v.note ? '　' + v.note : ''}${movedFromNote}</div>
       </div>
       <div class="count-badge">
         <div class="count-num status-${status}">${total}</div>
         <div class="count-label">${capOpen ? '不限' : '/ ' + capLimit + ' 台'}</div>
       </div>
     </div>
+    ${cancelBanner}
     <div style="padding: 8px 18px 4px; display:flex; gap:12px; font-size:12px;">
       <div style="flex:1">
         <div style="display:flex;justify-content:space-between;margin-bottom:3px;">
@@ -1436,9 +1569,21 @@ function buildCard(v) {
       </label>
       <button onclick="saveVoyageCapInline(this,'${v.id}')" style="padding:3px 10px;font-size:12px;background:#ea580c;color:#fff;border:none;border-radius:5px;cursor:pointer;">✓ 儲存</button>
     </div>` : ''}
+    ${isAdminUser ? `<div class="cancel-admin" style="margin:0 18px 6px;padding:8px 10px;background:#fef2f2;border:1px dashed #fecaca;border-radius:8px;font-size:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+      <span style="font-weight:700;color:#b91c1c;">🚫 停航</span>
+      ${cancelled
+        ? `<span style="color:#b91c1c;">目前：${esc(cancelReason || '停航')}</span><button onclick="saveVoyageCancelInline(this,'${v.id}',false)" style="padding:3px 10px;font-size:12px;background:#16a34a;color:#fff;border:none;border-radius:5px;cursor:pointer;">取消停航</button>`
+        : `<input type="text" class="cancel-reason-input" placeholder="原因，例：風大停航" maxlength="100" style="flex:1;min-width:110px;border:1px solid #fecaca;border-radius:5px;padding:3px 6px;"><button onclick="saveVoyageCancelInline(this,'${v.id}',true)" style="padding:3px 10px;font-size:12px;background:#dc2626;color:#fff;border:none;border-radius:5px;cursor:pointer;">設為停航</button>`}
+    </div>` : ''}
+    ${isAdminUser ? `<div class="move-admin" style="margin:0 18px 6px;padding:8px 10px;background:#fffbeb;border:1px dashed #fcd34d;border-radius:8px;font-size:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+      <span style="font-weight:700;color:#b45309;">🕓 延期</span>
+      ${moved
+        ? `<span style="color:#b45309;">已延至 ${esc(voyageMovedDate(v.id))}${voyageMovedTime(v.id) ? ' ' + esc(voyageMovedTime(v.id)) : ''}（旅客已隨船移動）</span><button onclick="saveVoyageMoveInline(this,'${v.id}',false)" style="padding:3px 10px;font-size:12px;background:#16a34a;color:#fff;border:none;border-radius:5px;cursor:pointer;">取消延期</button>`
+        : `延到 <input type="date" class="move-date-input" style="border:1px solid #fcd34d;border-radius:5px;padding:2px 4px;"><input type="text" class="move-time-input" placeholder="時間可留空" maxlength="5" style="width:82px;border:1px solid #fcd34d;border-radius:5px;padding:3px 6px;"><button onclick="saveVoyageMoveInline(this,'${v.id}',true)" style="padding:3px 10px;font-size:12px;background:#d97706;color:#fff;border:none;border-radius:5px;cursor:pointer;">延期</button>`}
+    </div>` : ''}
     ${canWrite() ? `<div class="btn-add-wrap">
-      <button class="btn-add" ${isFull ? 'disabled' : ''} onclick="openModal('${v.id}')">
-        ${isFull ? `此航次已達上限 ${capLimit} 台${isAdminUser ? '（可用上方調整）' : '，請洽管理者'}` : '＋ 登記輪椅旅客'}
+      <button class="btn-add" ${(cancelled || isFull) ? 'disabled' : ''} onclick="openModal('${v.id}')">
+        ${cancelled ? `🚫 ${esc(cancelReason || '停航')}，無法登記` : isFull ? `此航次已達上限 ${capLimit} 台${isAdminUser ? '（可用上方調整）' : '，請洽管理者'}` : '＋ 登記輪椅旅客'}
       </button>
     </div>` : ''}
   `;
@@ -1593,6 +1738,7 @@ function updateReturnHint() {
 
 function openModal(voyageId) {
   if (!canWrite()) return;   // 唯讀帳號不可新增
+  if (voyageCancelled(voyageId)) { alert('此航次已停航' + (voyageCancelReason(voyageId) ? '（' + voyageCancelReason(voyageId) + '）' : '') + '，無法新增登記'); return; }
   currentVoyageId = voyageId;
   const v = SCHEDULE.find(x => x.id === voyageId);
   const selfCount     = getVoyageSelfCount(voyageId);
@@ -2046,9 +2192,9 @@ const FIELD_LABELS = {
   n1:'通知票務群組', n2:'通知旅服所', n3:'海巡通關', n4:'告知負責人', n5:'通知客貨運群組', n6:'填寫搭乘聲明書',
 };
 const ACTION_LABELS = { add:'新增', edit:'修改', delete:'刪除', login:'登入', logout:'登出',
-  createUser:'新增帳號', updateUser:'修改帳號', disableUser:'停用帳號', enableUser:'啟用帳號', resetPassword:'重設密碼', setVoyageTime:'設定通關時間', setVoyageCap:'設定航次上限' };
+  createUser:'新增帳號', updateUser:'修改帳號', disableUser:'停用帳號', enableUser:'啟用帳號', resetPassword:'重設密碼', setVoyageTime:'設定通關時間', setVoyageCap:'設定航次上限', setVoyageCancel:'停航設定', setVoyageMove:'航次延期' };
 const ACTION_COLORS = { add:'#16a34a', edit:'#2563eb', delete:'#dc2626', login:'#6b7280', logout:'#6b7280',
-  createUser:'#16a34a', updateUser:'#2563eb', disableUser:'#dc2626', enableUser:'#16a34a', resetPassword:'#2563eb', setVoyageTime:'#7c3aed', setVoyageCap:'#ea580c' };
+  createUser:'#16a34a', updateUser:'#2563eb', disableUser:'#dc2626', enableUser:'#16a34a', resetPassword:'#2563eb', setVoyageTime:'#7c3aed', setVoyageCap:'#ea580c', setVoyageCancel:'#dc2626', setVoyageMove:'#d97706' };
 function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function fieldLabel(k){ return FIELD_LABELS[k] || k; }
 function fmtVal(k, v){
@@ -2088,6 +2234,8 @@ function formatAuditDetail(row){
   if (row.action === 'delete' && d.before) return '（刪除）' + esc(summarizeReg(d.before));
   if (row.action === 'setVoyageTime') return '航次 ' + esc(row.targetId || '') + '：通關時間 ' + (d.clTime ? esc(d.clTime) : '（清除）');
   if (row.action === 'setVoyageCap') return '航次 ' + esc(row.targetId || '') + '：' + (d.capOpen ? '開放登記（不限台數）' : '上限 ' + esc(d.capLimit) + ' 台');
+  if (row.action === 'setVoyageCancel') return '航次 ' + esc(row.targetId || '') + '：' + (d.cancelled ? '停航' + (d.cancelReason ? '（' + esc(d.cancelReason) + '）' : '') : '取消停航');
+  if (row.action === 'setVoyageMove') return '航次 ' + esc(row.targetId || '') + '：' + (d.movedToDate ? '延至 ' + esc(d.movedToDate) + (d.movedToTime ? ' ' + esc(d.movedToTime) : '') : '取消延期');
   if (row.action === 'login')  return row.result === 'fail' ? '<span style="color:#dc2626">登入失敗</span>' : '登入成功';
   if (row.action === 'logout') return '登出';
   return '';
