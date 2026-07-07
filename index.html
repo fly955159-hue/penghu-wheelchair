@@ -624,7 +624,7 @@
       <div class="stat"><div class="num" id="statTotal">0</div><div class="lbl">當月登記總台數</div></div>
       <div class="stat"><div class="num" id="statVoyages">0</div><div class="lbl">已登記航次數</div></div>
       <div class="stat"><div class="num" id="statFull">0</div><div class="lbl">已滿額航次</div></div>
-      <div class="stat"><div class="num" id="statWarn">0</div><div class="lbl">接近滿額(9~13台)</div></div>
+      <div class="stat"><div class="num" id="statWarn">0</div><div class="lbl">接近滿額</div></div>
     </div>
     <button class="btn-export" id="exportBtn" onclick="exportMonthReport()">📊 匯出本月報表</button>
   </div>
@@ -1088,7 +1088,8 @@ function saveVoyageTimeInline(btn, voyageId) {
 // 樂觀儲存航次通關時間（共用）；失敗則還原並提示
 async function saveVoyageTime(voyageId, clTime) {
   const backup = voyageMeta[voyageId];
-  voyageMeta[voyageId] = { voyageId, clTime, updatedBy: getUserName(), updatedAt: new Date().toISOString() };
+  // 保留既有欄位（capLimit/capOpen 等），避免設定通關時間時把管理者的上限設定清掉
+  voyageMeta[voyageId] = { ...(voyageMeta[voyageId] || {}), voyageId, clTime, updatedBy: getUserName(), updatedAt: new Date().toISOString() };
   markPendingVoyage(voyageId);
   localStorage.setItem('phVoyageMeta', JSON.stringify(voyageMeta));
   renderVoyages();
@@ -1104,6 +1105,44 @@ async function saveVoyageTime(voyageId, clTime) {
     renderVoyages();
     setSyncStatus('error', '設定失敗');
     alert('設定通關時間失敗：' + e.message);
+  }
+}
+
+// ── 管理者：逐航次調整上限 / 開放（僅管理者）──
+function saveVoyageCapInline(btn, voyageId) {
+  if (getRole() !== 'admin') return;
+  const wrap = btn.closest('.cap-admin');
+  if (!wrap) return;
+  const open = !!wrap.querySelector('.cap-open-input').checked;
+  let limit = parseInt(wrap.querySelector('.cap-limit-input').value, 10);
+  if (!open) {
+    if (isNaN(limit) || limit < 1 || limit > 99) { alert('上限台數請填 1–99'); return; }
+  } else if (isNaN(limit) || limit < 1) {
+    limit = voyageCapLimit(voyageId);   // 開放時 limit 沿用現值
+  }
+  saveVoyageCap(voyageId, limit, open);
+}
+// 樂觀儲存航次上限設定；失敗則還原並提示
+async function saveVoyageCap(voyageId, limit, open) {
+  if (getRole() !== 'admin') { alert('僅管理者可調整航次上限'); return; }
+  if (!API_URL) { alert('系統未設定後端，無法設定'); return; }
+  const backup = voyageMeta[voyageId];
+  voyageMeta[voyageId] = { ...(voyageMeta[voyageId] || {}), voyageId, capLimit: limit, capOpen: open, updatedBy: getUserName(), updatedAt: new Date().toISOString() };
+  markPendingVoyage(voyageId);
+  localStorage.setItem('phVoyageMeta', JSON.stringify(voyageMeta));
+  renderVoyages();
+  setSyncStatus('syncing');
+  try {
+    await apiPost({ action: 'setVoyageCap', voyageId, capLimit: limit, capOpen: open });
+    fetchVoyageMeta(); // 背景確認，不 await
+  } catch(e) {
+    if (e.message === 'AUTH') return;
+    clearPendingVoyage(voyageId);
+    if (backup) voyageMeta[voyageId] = backup; else delete voyageMeta[voyageId];
+    localStorage.setItem('phVoyageMeta', JSON.stringify(voyageMeta));
+    renderVoyages();
+    setSyncStatus('error', '設定失敗');
+    alert('設定航次上限失敗：' + e.message);
   }
 }
 
@@ -1154,11 +1193,19 @@ async function deleteRegRemote(regId) {
   }
 }
 
-const MAX_TOTAL    = 10; // 每航次總上限
-const MAX_SELF     = 6;  // 自主登輪上限
-const MAX_SEPARATE = 4;  // 人車分離上限
-// 是否強制台數上限。false=不擋（仍顯示台數供參考）。要恢復限制改回 true（後端也要同步改 ENFORCE_CAP 並重新部署）
-const ENFORCE_CAP  = false;
+const MAX_TOTAL    = 10; // 每航次總量「預設」上限（管理者可逐航次調整；實際上限見 voyageCapLimit）
+const MAX_SELF     = 6;  // 自主登輪（僅供顯示參考，實際只強制總量）
+const MAX_SEPARATE = 4;  // 人車分離（僅供顯示參考）
+// 每航次的實際上限 / 是否開放：讀自 voyageMeta（後端為唯一真相，前端僅用於畫面與提前提示）
+function voyageCapLimit(voyageId) {
+  const m = voyageMeta[voyageId];
+  const n = m && Number(m.capLimit);
+  return (n && n > 0) ? Math.floor(n) : MAX_TOTAL;
+}
+function voyageCapOpen(voyageId) {
+  const m = voyageMeta[voyageId];
+  return !!(m && (m.capOpen === true || m.capOpen === 'TRUE' || m.capOpen === 'true'));
+}
 
 function getVoyageRegs(voyageId) {
   return registrations.filter(r => r.voyageId === voyageId);
@@ -1231,19 +1278,20 @@ function getVoyageSeparateCount(voyageId) {
   return getVoyageRegs(voyageId).reduce((s, r) => s + regSepCount(r), 0);
 }
 
-function getStatus(total) {
-  if (total >= MAX_TOTAL) return 'full';
-  if (total >= 8) return 'warn';
+function getStatus(total, limit) {
+  limit = limit || MAX_TOTAL;
+  if (total >= limit) return 'full';
+  if (total > 0 && total >= limit - 2) return 'warn';
   return 'ok';
 }
 
-function statusText(selfCount, separateCount) {
-  const total = selfCount + separateCount;
-  const remSelf = Math.max(0, MAX_SELF - selfCount);
-  const remSep  = Math.max(0, MAX_SEPARATE - separateCount);
-  if (total >= MAX_TOTAL) return `已達上限 (${total}/${MAX_TOTAL})`;
-  if (total >= 8) return `接近上限，自主登輪剩 ${remSelf} 台 / 人車分離剩 ${remSep} 台`;
-  return `自主登輪剩 ${remSelf} 台 ／ 人車分離剩 ${remSep} 台`;
+// total：目前總台數；limit：該航次上限；isOpen：管理者已開放（不限）
+function statusText(total, limit, isOpen) {
+  limit = limit || MAX_TOTAL;
+  if (isOpen) return `已開放登記（目前 ${total} 台，管理者已放寬上限）`;
+  if (total >= limit) return `已達上限（${total}/${limit} 台）`;
+  if (total > 0 && total >= limit - 2) return `接近上限（${total}/${limit} 台）`;
+  return `目前 ${total} 台，尚可登記 ${Math.max(0, limit - total)} 台`;
 }
 
 // ────────────────────────────────────────────────
@@ -1287,11 +1335,14 @@ function buildCard(v) {
   const selfCount     = getVoyageSelfCount(v.id);
   const separateCount = getVoyageSeparateCount(v.id);
   const total         = selfCount + separateCount;
-  const status        = getStatus(total);
+  const capLimit      = voyageCapLimit(v.id);   // 該航次上限（管理者可調整，預設 10）
+  const capOpen       = voyageCapOpen(v.id);    // 管理者已開放此航次（不限）
+  const status        = capOpen ? 'ok' : getStatus(total, capLimit);
   const regs          = getVoyageRegs(v.id);
   const selfPct       = Math.min(100, Math.round(selfCount / MAX_SELF * 100));
   const sepPct        = Math.min(100, Math.round(separateCount / MAX_SEPARATE * 100));
-  const isFull        = total >= MAX_TOTAL;
+  const isFull        = !capOpen && total >= capLimit;   // 已達上限且未開放 → 擋
+  const isAdminUser   = (getRole() === 'admin');
 
   const card = document.createElement('div');
   card.className = `voyage-card status-${status}`;
@@ -1348,7 +1399,7 @@ function buildCard(v) {
       </div>
       <div class="count-badge">
         <div class="count-num status-${status}">${total}</div>
-        <div class="count-label">/ ${MAX_TOTAL} 台</div>
+        <div class="count-label">${capOpen ? '不限' : '/ ' + capLimit + ' 台'}</div>
       </div>
     </div>
     <div style="padding: 8px 18px 4px; display:flex; gap:12px; font-size:12px;">
@@ -1371,13 +1422,23 @@ function buildCard(v) {
         </div>
       </div>
     </div>
-    <div class="status-text status-${status}" style="padding-top:10px">${statusText(selfCount, separateCount)}</div>
+    <div class="status-text status-${status}" style="padding-top:10px">${statusText(total, capLimit, capOpen)}</div>
     ${companionHTML}
     ${clearanceHTML}
     <div class="reg-list">${regItems}</div>
+    ${isAdminUser ? `<div class="cap-admin" style="margin:6px 18px 0;padding:8px 10px;background:#fff7ed;border:1px dashed #fdba74;border-radius:8px;font-size:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+      <span style="font-weight:700;color:#9a3412;">🔧 管理者上限</span>
+      <label style="display:flex;align-items:center;gap:3px;">上限
+        <input type="number" class="cap-limit-input" value="${capLimit}" min="1" max="99" ${capOpen ? 'disabled' : ''} style="width:50px;text-align:center;border:1px solid #fdba74;border-radius:5px;padding:2px 4px;">台
+      </label>
+      <label style="display:flex;align-items:center;gap:4px;cursor:pointer;">
+        <input type="checkbox" class="cap-open-input" ${capOpen ? 'checked' : ''} onchange="this.closest('.cap-admin').querySelector('.cap-limit-input').disabled=this.checked"> 開放（不限台數）
+      </label>
+      <button onclick="saveVoyageCapInline(this,'${v.id}')" style="padding:3px 10px;font-size:12px;background:#ea580c;color:#fff;border:none;border-radius:5px;cursor:pointer;">✓ 儲存</button>
+    </div>` : ''}
     ${canWrite() ? `<div class="btn-add-wrap">
-      <button class="btn-add" ${(ENFORCE_CAP && isFull) ? 'disabled' : ''} onclick="openModal('${v.id}')">
-        ${(ENFORCE_CAP && isFull) ? `此航次已達 ${MAX_TOTAL} 台上限` : '＋ 登記輪椅旅客'}
+      <button class="btn-add" ${isFull ? 'disabled' : ''} onclick="openModal('${v.id}')">
+        ${isFull ? `此航次已達上限 ${capLimit} 台${isAdminUser ? '（可用上方調整）' : '，請洽管理者'}` : '＋ 登記輪椅旅客'}
       </button>
     </div>` : ''}
   `;
@@ -1411,11 +1472,17 @@ function updateStats(filtered) {
   const dateFilter = document.getElementById('dateFilter').value;
   const yearMonth = dateFilter ? dateFilter.slice(0,7) : new Date().toISOString().slice(0,7);
   const monthVoyages = SCHEDULE.filter(v => v.date.slice(0,7) === yearMonth);
-  const counts = monthVoyages.map(v => getVoyageCount(v.id));
-  const total = counts.reduce((s,c) => s + c, 0);
-  const full  = counts.filter(c => c >= MAX_TOTAL).length;
-  const warn  = counts.filter(c => c >= 8 && c < MAX_TOTAL).length;
-  const withRegs = counts.filter(c => c > 0).length;
+  // 依每航次各自的上限判斷滿額/接近滿額；已開放的航次不計入滿額
+  let total = 0, full = 0, warn = 0, withRegs = 0;
+  monthVoyages.forEach(v => {
+    const c = getVoyageCount(v.id);
+    total += c;
+    if (c > 0) withRegs++;
+    if (voyageCapOpen(v.id)) return;
+    const lim = voyageCapLimit(v.id);
+    if (c >= lim) full++;
+    else if (c > 0 && c >= lim - 2) warn++;
+  });
   const monthLabel = yearMonth.replace('-','年') + '月';
   document.getElementById('statsMonthLabel').textContent = monthLabel + '統計';
   document.getElementById('statTotal').textContent = total;
@@ -1485,13 +1552,14 @@ function applyOfficeLock() {
 }
 
 // 檢查某航次再加 addSelf/addSep 台是否超過上限
-function canFit(voyageId, addSelf, addSep) {
-  if (!ENFORCE_CAP) return true;   // 未啟用上限：一律放行（不擋登記）
-  const curSelf = getVoyageSelfCount(voyageId);
-  const curSep  = getVoyageSeparateCount(voyageId);
-  return (curSelf + addSelf <= MAX_SELF)
-      && (curSep + addSep <= MAX_SEPARATE)
-      && (curSelf + curSep + addSelf + addSep <= MAX_TOTAL);
+function canFit(voyageId, addSelf, addSep, excludeId) {
+  if (voyageCapOpen(voyageId)) return true;   // 管理者已開放此航次：不擋
+  let cur = getVoyageSelfCount(voyageId) + getVoyageSeparateCount(voyageId);
+  if (excludeId) {                            // 編輯時排除自己這筆的舊台數，避免重複計入
+    const r = registrations.find(x => x.id === excludeId);
+    if (r && r.voyageId === voyageId) cur -= (regSelfCount(r) + regSepCount(r));
+  }
+  return (cur + (Number(addSelf) || 0) + (Number(addSep) || 0)) <= voyageCapLimit(voyageId);
 }
 
 // 填入回程航次下拉（反向航線、日期 >= 去程）
@@ -1735,6 +1803,9 @@ async function submitReg() {
       const paired = registrations.find(r => r.tripGroup === orig.tripGroup && r.id !== editingRegId);
       if (paired) pairedReg = { ...paired, ...shared };
     }
+    // 編輯也檢查上限（排除自己這筆舊台數），與新增路徑一致，避免送出才被後端打回
+    if (!canFit(reg.voyageId, selfCount, sepCount, reg.id)) { alert('此航次台數會超過上限，無法登記。如需超收，請管理者開放此航次或提高上限'); return; }
+    if (pairedReg && !canFit(pairedReg.voyageId, selfCount, sepCount, pairedReg.id)) { alert('回程航次台數會超過上限，無法登記。如需超收，請管理者開放此航次或提高上限'); return; }
     const idx = registrations.findIndex(r => r.id === editingRegId);
     if (idx !== -1) registrations[idx] = reg; else registrations.push(reg);
     markPendingWrite(reg.id);
@@ -1975,9 +2046,9 @@ const FIELD_LABELS = {
   n1:'通知票務群組', n2:'通知旅服所', n3:'海巡通關', n4:'告知負責人', n5:'通知客貨運群組', n6:'填寫搭乘聲明書',
 };
 const ACTION_LABELS = { add:'新增', edit:'修改', delete:'刪除', login:'登入', logout:'登出',
-  createUser:'新增帳號', updateUser:'修改帳號', disableUser:'停用帳號', enableUser:'啟用帳號', resetPassword:'重設密碼', setVoyageTime:'設定通關時間' };
+  createUser:'新增帳號', updateUser:'修改帳號', disableUser:'停用帳號', enableUser:'啟用帳號', resetPassword:'重設密碼', setVoyageTime:'設定通關時間', setVoyageCap:'設定航次上限' };
 const ACTION_COLORS = { add:'#16a34a', edit:'#2563eb', delete:'#dc2626', login:'#6b7280', logout:'#6b7280',
-  createUser:'#16a34a', updateUser:'#2563eb', disableUser:'#dc2626', enableUser:'#16a34a', resetPassword:'#2563eb', setVoyageTime:'#7c3aed' };
+  createUser:'#16a34a', updateUser:'#2563eb', disableUser:'#dc2626', enableUser:'#16a34a', resetPassword:'#2563eb', setVoyageTime:'#7c3aed', setVoyageCap:'#ea580c' };
 function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function fieldLabel(k){ return FIELD_LABELS[k] || k; }
 function fmtVal(k, v){
@@ -2016,6 +2087,7 @@ function formatAuditDetail(row){
   if (row.action === 'add' && d.after)    return esc(summarizeReg(d.after));
   if (row.action === 'delete' && d.before) return '（刪除）' + esc(summarizeReg(d.before));
   if (row.action === 'setVoyageTime') return '航次 ' + esc(row.targetId || '') + '：通關時間 ' + (d.clTime ? esc(d.clTime) : '（清除）');
+  if (row.action === 'setVoyageCap') return '航次 ' + esc(row.targetId || '') + '：' + (d.capOpen ? '開放登記（不限台數）' : '上限 ' + esc(d.capLimit) + ' 台');
   if (row.action === 'login')  return row.result === 'fail' ? '<span style="color:#dc2626">登入失敗</span>' : '登入成功';
   if (row.action === 'logout') return '登出';
   return '';
@@ -2341,11 +2413,11 @@ function buildMonthReport_() {
     const scooter  = typeSum['電動代步車']   || 0;
     const tractor  = typeSum['動力牽引車頭'] || 0;
     const simpleWcSum = regs.reduce((s,r) => s + (Number(r.simpleWc) || 0), 0); // 該航次需借用船上輪椅合計
-    const status   = total >= MAX_TOTAL ? '已滿額' : total >= 8 ? '接近滿額' : total > 0 ? '正常' : '—';
+    const _lim = voyageCapLimit(v.id), _open = voyageCapOpen(v.id);
+    const status   = _open ? '已開放' : total >= _lim ? '已滿額' : (total > 0 && total >= _lim - 2) ? '接近滿額' : total > 0 ? '正常' : '—';
 
     totalAll += total; totalKsn += ksn; totalPkh += pkh; totalSimpleWc += simpleWcSum;
-    if (total >= MAX_TOTAL) fullCount++;
-    else if (total >= 8) warnCount++;
+    if (!_open) { if (total >= _lim) fullCount++; else if (total > 0 && total >= _lim - 2) warnCount++; }
 
     summaryData.push([
       v.date, v.departTime, routeLabel(v.route),
