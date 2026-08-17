@@ -769,8 +769,18 @@
         </label>
         <label style="display:flex; align-items:center; gap:8px; font-size:13px; cursor:pointer;">
           <input type="checkbox" id="modal_cl_n6" style="width:16px;height:16px;accent-color:var(--primary);">
-          已填寫搭乘聲明書
+          已向旅客說明搭乘注意事項
         </label>
+        <details style="margin-top:4px; font-size:12px;">
+          <summary style="cursor:pointer; color:#2563eb; font-weight:600; user-select:none;">📋 點開查看搭乘注意事項（向旅客說明用）</summary>
+          <div style="margin-top:6px; border:1px solid var(--border); border-radius:6px; overflow:hidden;">
+            <div style="padding:6px 8px; background:#eff6ff; border-bottom:1px solid var(--border);"><b>空間限制</b>：所購買客艙受門寬、艙內迴轉空間及部分通道尺寸限制，行動輔具無法進入。</div>
+            <div style="padding:6px 8px; border-bottom:1px solid var(--border);"><b>人車分離</b>：行動輔具依規定辦理人車分離時需配合放置於指定區域，不阻礙走道及逃生動線。</div>
+            <div style="padding:6px 8px; background:#f8fafc; border-bottom:1px solid var(--border);"><b>保管責任</b>：採人車分離之行動輔具，其隨車貴重物品由本人自行保管，澎湖輪僅提供場地放置，不負保管及損壞賠償責任。</div>
+            <div style="padding:6px 8px; border-bottom:1px solid var(--border);"><b>電池安全</b>：行動輔具電池須具經濟部標準檢驗局檢驗合格標識；鋰電池由本人自行確認無破損變形、於船上嚴禁充電並斷電絕緣；如有航安疑慮，澎湖輪將拒絕載運輔具。</div>
+            <div style="padding:6px 8px; background:#f8fafc;"><b>關閉動力</b>：行動輔具入艙後須關閉動力、航行中不得操作移動並妥善繫固；如有必要移動需求應放慢速度；海象不佳時配合船上人員引導移至優先席乘坐。</div>
+          </div>
+        </details>
       </div>
     </div>
 
@@ -2275,7 +2285,7 @@ const FIELD_LABELS = {
   voyageId:'航次', office:'單位', selfCount:'自主台數', sepCount:'人車分離台數',
   typeSelf:'自主輪椅類型', typeSep:'人車分離輪椅類型', name:'姓名/聯絡人', companion:'陪伴者', simpleWc:'需借用輪椅',
   staff:'登記人員', serial:'序號', note:'備註', createdAt:'建立時間', clTime:'海巡通關時間',
-  n1:'通知票務群組', n2:'通知旅服所', n3:'海巡通關', n4:'告知負責人', n5:'通知客貨運群組', n6:'填寫搭乘聲明書',
+  n1:'通知票務群組', n2:'通知旅服所', n3:'海巡通關', n4:'告知負責人', n5:'通知客貨運群組', n6:'向旅客說明搭乘注意事項',
 };
 const ACTION_LABELS = { add:'新增', edit:'修改', delete:'刪除', login:'登入', logout:'登出',
   createUser:'新增帳號', updateUser:'修改帳號', disableUser:'停用帳號', enableUser:'啟用帳號', resetPassword:'重設密碼', setVoyageTime:'設定通關時間', setVoyageCap:'設定航次上限', setVoyageCancel:'停航設定', setVoyageMove:'航次延期' };
